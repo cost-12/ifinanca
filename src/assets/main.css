@@ -153,6 +153,6 @@ select {
 
 .avatar-button {
   border: 0;
-  background: transparent;
   padding: 0;
+  line-height: 1;
 }

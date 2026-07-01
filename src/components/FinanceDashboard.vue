@@ -408,15 +408,13 @@ function newLaunchLabel(bank: BankConnection) {
 
           <div class="relative">
             <button
-              class="avatar-button avatar placeholder"
+              class="avatar-button grid size-9 place-items-center overflow-hidden rounded-full bg-[#17c964] text-sm font-black leading-none text-[#06130a]"
               type="button"
               aria-label="Abrir menu do perfil"
               @click="toggleProfileMenu"
             >
-              <div class="w-9 overflow-hidden rounded-full bg-[#17c964] text-sm font-black text-[#06130a]">
-                <img v-if="profile.avatarUrl" class="h-full w-full object-cover" :src="profile.avatarUrl" alt="" />
-                <span v-else>{{ firstName.slice(0, 1).toUpperCase() }}</span>
-              </div>
+              <img v-if="profile.avatarUrl" class="h-full w-full object-cover" :src="profile.avatarUrl" alt="" />
+              <span v-else class="grid size-full place-items-center leading-none">{{ firstName.slice(0, 1).toUpperCase() }}</span>
             </button>
 
             <input ref="avatarInput" class="hidden" accept="image/*" type="file" @change="handleAvatarSelected" />
