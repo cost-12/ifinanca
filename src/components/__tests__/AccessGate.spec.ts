@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import AccessGate from '../AccessGate.vue'
-import { loginWithEmailProfile } from '@/services/firebase'
+import { loginWithEmailProfile, signInWithGoogleProfile } from '@/services/firebase'
 
 vi.mock('@/services/firebase', () => ({
   getFirebaseAuthErrorMessage: vi.fn(() => 'Erro de autenticacao'),
@@ -26,6 +26,14 @@ vi.mock('@/services/firebase', () => ({
     emailVerificationSent: true,
   }),
   sendLoginPasswordReset: vi.fn(),
+  signInWithGoogleProfile: vi.fn().mockResolvedValue({
+    id: 'google-user',
+    name: 'Thiago Google',
+    email: 'thiago.google@example.com',
+    goal: 'Organizar fluxo mensal',
+    monthlyIncome: 8600,
+    createdAt: '2026-07-01T00:00:00.000Z',
+  }),
 }))
 
 describe('AccessGate', () => {
@@ -68,6 +76,22 @@ describe('AccessGate', () => {
       name: 'Thiago Costa',
       email: 'thiago@example.com',
       goal: 'Unificar bancos',
+    })
+  })
+
+  it('emits a profile after Google authentication', async () => {
+    const wrapper = mount(AccessGate)
+
+    await wrapper.findAll('button').find((button) => button.text().includes('Continuar com Google'))!.trigger('click')
+    await flushPromises()
+
+    expect(signInWithGoogleProfile).toHaveBeenCalledWith({
+      goal: 'Organizar fluxo mensal',
+      monthlyIncome: 8600,
+    })
+    expect(wrapper.emitted('authenticated')?.[0]?.[0]).toMatchObject({
+      name: 'Thiago Google',
+      email: 'thiago.google@example.com',
     })
   })
 })

@@ -182,7 +182,9 @@ VITE_PLUGGY_CONNECT_TOKEN_URL=/api/connect-token
 
 ## Firebase Auth e regras
 
-Habilite Email/Senha no Firebase Authentication. O cadastro envia `sendEmailVerification`, encerra a sessao e mostra a tela de login. O app so exibe o dashboard apos `onAuthStateChanged` confirmar uma sessao ativa com `emailVerified === true`.
+Habilite Email/Senha e Google no Firebase Authentication. O cadastro por e-mail envia `sendEmailVerification`, encerra a sessao e mostra a tela de login. O acesso com Google usa `signInWithPopup` e cria o perfil inicial se ainda nao existir. O app so exibe o dashboard apos `onAuthStateChanged` confirmar uma sessao ativa com `emailVerified === true`.
+
+Em `Authentication > Settings > Authorized domains`, mantenha `ifinanca.pages.dev`, `localhost` e qualquer dominio proprio usado em producao.
 
 As regras em `firestore.rules`:
 

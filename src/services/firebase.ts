@@ -2,10 +2,12 @@ import { initializeApp, type FirebaseApp } from 'firebase/app'
 import {
   createUserWithEmailAndPassword,
   getAuth,
+  GoogleAuthProvider,
   onAuthStateChanged,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   updateProfile,
   type Auth,
@@ -211,6 +213,36 @@ export async function loginWithEmailProfile(input: LoginInput) {
   return getCurrentUserProfile(credential.user)
 }
 
+export async function signInWithGoogleProfile(input?: Partial<RegisterProfileInput>) {
+  const { auth } = getFirebaseServices()
+  const provider = new GoogleAuthProvider()
+  provider.setCustomParameters({
+    prompt: 'select_account',
+  })
+
+  const credential = await signInWithPopup(auth, provider)
+
+  await credential.user.reload()
+
+  if (!credential.user.emailVerified) {
+    await signOut(auth)
+    throw createAuthFlowError('auth/email-not-verified', 'E-mail ainda nao verificado.')
+  }
+
+  const { db } = getFirebaseServices()
+  const profileRef = doc(db, 'users', credential.user.uid)
+  const snapshot = await getDoc(profileRef)
+
+  if (!snapshot.exists()) {
+    return writeInitialProfile(credential.user, {
+      goal: input?.goal || defaultGoal,
+      monthlyIncome: Number(input?.monthlyIncome || 0),
+    })
+  }
+
+  return profileFromUser(credential.user, snapshot.data() as FirestoreProfileData)
+}
+
 export async function logoutUser() {
   const { auth } = getFirebaseServices()
   await signOut(auth)
@@ -255,7 +287,12 @@ export function getFirebaseAuthErrorMessage(error: unknown) {
     'auth/missing-password': 'Informe sua senha.',
     'auth/network-request-failed': 'Falha de rede. Verifique sua conexao.',
     'auth/operation-not-allowed': 'Habilite o provedor Email/Senha no Firebase Authentication.',
+    'auth/account-exists-with-different-credential': 'Este e-mail ja esta cadastrado com outro metodo de acesso.',
+    'auth/cancelled-popup-request': 'A janela do Google foi cancelada.',
+    'auth/popup-blocked': 'O navegador bloqueou a janela do Google. Permita pop-ups para continuar.',
+    'auth/popup-closed-by-user': 'A janela do Google foi fechada antes de concluir.',
     'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos.',
+    'auth/unauthorized-domain': 'Adicione este dominio nos dominios autorizados do Firebase Authentication.',
     'auth/user-not-found': 'Conta nao encontrada.',
     'auth/weak-password': 'Use uma senha com pelo menos 6 caracteres.',
     'auth/wrong-password': 'E-mail ou senha invalidos.',

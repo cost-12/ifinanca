@@ -17,6 +17,7 @@ import {
   loginWithEmailProfile,
   registerWithEmailProfile,
   sendLoginPasswordReset,
+  signInWithGoogleProfile,
 } from '@/services/firebase'
 import type { AccessGoal, UserProfile } from '@/types/finance'
 
@@ -46,6 +47,7 @@ const form = reactive({
 
 const authMode = ref<'login' | 'register'>('register')
 const isSubmitting = ref(false)
+const isGoogleSubmitting = ref(false)
 const isResettingPassword = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
@@ -125,6 +127,29 @@ async function resetPassword() {
     errorMessage.value = getFirebaseAuthErrorMessage(error)
   } finally {
     isResettingPassword.value = false
+  }
+}
+
+async function continueWithGoogle() {
+  if (!isFirebaseConfigured || isGoogleSubmitting.value || isSubmitting.value) {
+    return
+  }
+
+  isGoogleSubmitting.value = true
+  errorMessage.value = ''
+  successMessage.value = ''
+
+  try {
+    const profile = await signInWithGoogleProfile({
+      goal: form.goal,
+      monthlyIncome: Number(form.monthlyIncome),
+    })
+
+    emit('authenticated', profile)
+  } catch (error) {
+    errorMessage.value = getFirebaseAuthErrorMessage(error)
+  } finally {
+    isGoogleSubmitting.value = false
   }
 }
 </script>
@@ -280,6 +305,23 @@ async function resetPassword() {
         </p>
 
         <p v-if="authMessage" class="alert alert-error mb-4 rounded-lg text-sm">{{ authMessage }}</p>
+
+        <button
+          class="btn mb-5 w-full border-white/10 bg-white text-[#1f2937] hover:bg-zinc-100"
+          type="button"
+          :disabled="!isFirebaseConfigured || isGoogleSubmitting || isSubmitting"
+          @click="continueWithGoogle"
+        >
+          <span v-if="isGoogleSubmitting" class="loading loading-spinner loading-sm"></span>
+          <span v-else class="grid size-5 place-items-center rounded-full border border-zinc-300 text-sm font-black text-[#4285f4]">G</span>
+          <span>{{ isGoogleSubmitting ? 'Abrindo Google' : 'Continuar com Google' }}</span>
+        </button>
+
+        <div class="mb-5 flex items-center gap-3 text-xs font-bold uppercase text-zinc-500">
+          <span class="h-px flex-1 bg-white/10"></span>
+          <span>E-mail e senha</span>
+          <span class="h-px flex-1 bg-white/10"></span>
+        </div>
 
         <label v-if="isRegisterMode" class="form-control">
           <span class="label-text text-zinc-300">Nome</span>

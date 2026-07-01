@@ -72,7 +72,12 @@ Para desenvolvimento local com `npm run cloudflare:dev`, copie `.dev.vars.exampl
 
 ## Firebase
 
-Habilite o provedor Email/Senha em `Authentication > Sign-in method` no console Firebase. O cadastro envia um link de verificacao por e-mail e o dashboard so abre quando `emailVerified` estiver verdadeiro.
+Habilite os provedores em `Authentication > Sign-in method` no console Firebase:
+
+- Email/Senha: o cadastro envia um link de verificacao por e-mail e o dashboard so abre quando `emailVerified` estiver verdadeiro.
+- Google: permite cadastro/login via popup e cria o perfil inicial em `users/{uid}` no primeiro acesso.
+
+Em `Authentication > Settings > Authorized domains`, adicione `ifinanca.pages.dev`, `localhost` e qualquer dominio proprio usado em producao.
 
 O Firestore salva perfis em `users/{uid}`. As regras exigem `request.auth.uid == userId`, validam campos permitidos, bloqueiam `ifinanca_leads` e negam qualquer outra colecao por padrao.
 
