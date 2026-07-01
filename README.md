@@ -1,16 +1,15 @@
 # iFinanca
 
-Plataforma Vue para gestao financeira pessoal com visual inspirado no Meu Pluggy, usando Vite, Tailwind CSS, daisyUI, Firebase e Pluggy Connect.
+Plataforma Vue para gestao financeira pessoal com visual inspirado no Meu Pluggy, usando Vite, Tailwind CSS, daisyUI, Cloudflare Pages, Firebase Firestore e Pluggy Connect.
 
-## O que ja existe
+## Arquitetura
 
-- Tela inicial de acesso/divulgacao com cadastro antes da area principal.
-- Dashboard financeiro responsivo com overview, fluxo, ativos e conexoes.
-- Integracao Firebase preparada para salvar leads em `ifinanca_leads`.
-- Integracao Pluggy Connect preparada via `VITE_PLUGGY_CONNECT_TOKEN_URL`.
-- Fallback local/demo quando Firebase ou Pluggy ainda nao estiverem configurados.
+- Frontend: Vue/Vite hospedado no Cloudflare Pages.
+- Banco de dados: Firebase Firestore para salvar leads em `ifinanca_leads`.
+- Pluggy: Cloudflare Pages Function em `/api/connect-token`, mantendo credenciais server-side.
+- SPA fallback: `public/_redirects` redireciona rotas para `index.html`.
 
-## Setup
+## Setup local
 
 ```sh
 npm install
@@ -18,9 +17,9 @@ cp .env.example .env.local
 npm run dev
 ```
 
-O projeto ja esta apontado para o Firebase `pluggy-firebase` via `.firebaserc`. O `.env.local` local foi gerado com o app Web `iFinanca`; mantenha esse arquivo fora do git.
+O `.env.local` local ja esta apontado para o app Web Firebase `iFinanca` do projeto `pluggy-firebase`. Mantenha esse arquivo fora do git.
 
-## Variaveis
+## Variaveis do frontend
 
 ```sh
 VITE_FIREBASE_API_KEY=
@@ -29,50 +28,48 @@ VITE_FIREBASE_PROJECT_ID=
 VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
-VITE_PLUGGY_CONNECT_TOKEN_URL=
+VITE_FIREBASE_MEASUREMENT_ID=
+VITE_PLUGGY_CONNECT_TOKEN_URL=/api/connect-token
 VITE_PLUGGY_INCLUDE_SANDBOX=true
 ```
 
+Para deploy via Cloudflare Pages conectado ao Git, configure essas variaveis como build variables no painel do Pages. Para deploy via CLI local, `.env.production` ja fornece os valores publicos necessarios.
+
+## Secrets da Pluggy
+
+Nunca exponha `PLUGGY_CLIENT_ID` ou `PLUGGY_CLIENT_SECRET` no navegador. Configure-os como secrets do Cloudflare Pages:
+
+```sh
+npx wrangler pages secret put PLUGGY_CLIENT_ID --project-name ifinanca
+npx wrangler pages secret put PLUGGY_CLIENT_SECRET --project-name ifinanca
+npx wrangler pages secret put PLUGGY_WEBHOOK_SECRET --project-name ifinanca
+```
+
+Para desenvolvimento local com `npm run cloudflare:dev`, copie `.dev.vars.example` para `.dev.vars` e substitua pelos seus acessos reais da Pluggy.
+
 ## Firebase
 
-Arquivos configurados:
+O Firestore default do projeto `pluggy-firebase` foi criado e as regras foram publicadas. As regras permitem apenas criacao validada em `ifinanca_leads` e bloqueiam leitura/edicao pelo cliente.
 
-- `firebase.json`: Hosting, Firestore, Functions, Data Connect e emuladores.
-- `firestore.rules`: permite apenas criacao validada em `ifinanca_leads` e bloqueia leitura/edicao pelo cliente.
-- `functions/index.js`: endpoint `createPluggyConnectToken` para o Pluggy Connect.
+Para endurecer a seguranca em producao, ative Authentication/App Check e ajuste as regras para exigir `request.auth != null`.
 
-O Firestore default foi criado no projeto `pluggy-firebase` e as regras foram publicadas. Para endurecer a seguranca em producao, ative Authentication/App Check e ajuste as regras para exigir `request.auth != null`. Para a Pluggy Function, configure os secrets:
+## Deploy
 
 ```sh
-firebase functions:secrets:set PLUGGY_CLIENT_ID
-firebase functions:secrets:set PLUGGY_CLIENT_SECRET
+npm run cloudflare:deploy
 ```
 
-Deploy:
-
-```sh
-npm run firebase:deploy:rules
-npm run firebase:deploy:functions
-npm run firebase:deploy:hosting
-```
-
-## Pluggy
-
-O front nunca deve receber `PLUGGY_CLIENT_ID` nem `PLUGGY_CLIENT_SECRET`. Configure uma Firebase Function ou outro backend para gerar o `connectToken` e retorne:
-
-```json
-{
-  "connectToken": "token-gerado-pela-pluggy"
-}
-```
-
-Veja [docs/pluggy-firebase.md](docs/pluggy-firebase.md) para o fluxo recomendado.
+Esse comando executa `npm run build` e publica `dist` no Cloudflare Pages.
 
 ## Scripts
 
 ```sh
 npm run dev
+npm run cloudflare:dev
+npm run cloudflare:deploy
 npm run build
 npm run test:unit
 npm run test:e2e
 ```
+
+Veja [docs/pluggy-firebase.md](docs/pluggy-firebase.md) para o fluxo Pluggy + Cloudflare + Firebase.
