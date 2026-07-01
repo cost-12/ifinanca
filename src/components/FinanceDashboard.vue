@@ -29,23 +29,24 @@ import {
   assets,
   bankConnections,
   financeAccounts,
-  formatCurrency,
-  formatPercent,
   monthlyFlow,
   transactions,
 } from '@/data/finance'
+import { formatMoney, formatSignedPercent, languageOptions, translate } from '@/i18n'
 import { openPluggyConnect } from '@/services/pluggy'
-import type { AppTheme, BankConnection, UserProfile } from '@/types/finance'
+import type { AppLanguage, AppTheme, BankConnection, Transaction, UserProfile } from '@/types/finance'
 
 const props = defineProps<{
   profile: UserProfile
   theme: AppTheme
+  language: AppLanguage
 }>()
 
 const emit = defineEmits<{
   logout: []
   profileUpdated: [profile: UserProfile]
   themeChange: [theme: AppTheme]
+  languageChange: [language: AppLanguage]
 }>()
 
 type TabId = 'overview' | 'fluxo' | 'ativos' | 'conexoes'
@@ -64,13 +65,6 @@ interface NotificationItem {
 const NOTIFICATION_STORAGE_PREFIX = 'ifinanca.notifications.read'
 const MAX_AVATAR_BYTES = 3 * 1024 * 1024
 
-const tabs: { id: TabId; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'fluxo', label: 'Fluxo' },
-  { id: 'ativos', label: 'Ativos' },
-  { id: 'conexoes', label: 'Conexoes' },
-]
-
 const activeTab = ref<TabId>('overview')
 const menuOpen = ref(false)
 const notificationsOpen = ref(false)
@@ -83,8 +77,19 @@ const connectMessage = ref('')
 const connectedItemId = ref('')
 const readNotificationIds = ref<string[]>(readStoredNotificationIds(props.profile.id))
 
+function tr(key: Parameters<typeof translate>[1], variables?: Parameters<typeof translate>[2]) {
+  return translate(props.language, key, variables)
+}
+
+const tabs = computed<{ id: TabId; label: string }[]>(() => [
+  { id: 'overview', label: tr('nav.overview') },
+  { id: 'fluxo', label: tr('nav.flow') },
+  { id: 'ativos', label: tr('nav.assets') },
+  { id: 'conexoes', label: tr('nav.connections') },
+])
+
 const firstName = computed(() => props.profile.name.trim().split(' ')[0] || 'Usuario')
-const activeTabLabel = computed(() => tabs.find((tab) => tab.id === activeTab.value)?.label ?? 'Overview')
+const activeTabLabel = computed(() => tabs.value.find((tab) => tab.id === activeTab.value)?.label ?? tr('nav.overview'))
 const totalBalance = computed(() => bankConnections.reduce((total, bank) => total + bank.balance, 0))
 const incomeTotal = computed(() => transactions.filter((item) => item.amount > 0).reduce((total, item) => total + item.amount, 0))
 const outcomeTotal = computed(() => Math.abs(transactions.filter((item) => item.amount < 0).reduce((total, item) => total + item.amount, 0)))
@@ -94,14 +99,14 @@ const notifications = computed<NotificationItem[]>(() => {
     .filter((bank) => bank.newTransactions > 0 || bank.status === 'Pendente')
     .map((bank) => ({
       id: `bank-${bank.id}-${bank.newTransactions || bank.status}`,
-      title: bank.status === 'Pendente' ? `${bank.shortName} precisa sincronizar` : 'Novos lancamentos importados',
+      title: bank.status === 'Pendente' ? tr('notifications.bankSync', { bank: bank.shortName }) : tr('notifications.newTransactions'),
       description:
         bank.status === 'Pendente'
-          ? `Revise a conexao do ${bank.name} para concluir a importacao.`
-          : `${bank.name} tem ${bank.newTransactions.toLocaleString('pt-BR')} lancamentos disponiveis.`,
-      time: bank.status === 'Pendente' ? 'Agora' : 'Ha 12 min',
+          ? tr('notifications.reviewConnection', { bank: bank.name })
+          : tr('notifications.availableTransactions', { bank: bank.name, count: bank.newTransactions.toLocaleString(props.language) }),
+      time: bank.status === 'Pendente' ? tr('notifications.now') : tr('notifications.minutesAgo'),
       tone: (bank.status === 'Pendente' ? 'warning' : 'success') as NotificationTone,
-      actionLabel: 'Ver conexao',
+      actionLabel: tr('notifications.viewConnection'),
       actionTab: 'conexoes' as TabId,
     }))
 
@@ -109,11 +114,15 @@ const notifications = computed<NotificationItem[]>(() => {
     .filter((transaction) => transaction.status === 'Previsto')
     .map((transaction) => ({
       id: `transaction-${transaction.id}`,
-      title: 'Lancamento previsto',
-      description: `${transaction.title} em ${transaction.bank}: ${formatCurrency(transaction.amount)}.`,
+      title: tr('notifications.planned'),
+      description: tr('notifications.plannedDescription', {
+        title: transaction.title,
+        bank: transaction.bank,
+        amount: formatMoney(transaction.amount, props.language),
+      }),
       time: transaction.date,
       tone: 'info' as NotificationTone,
-      actionLabel: 'Ver fluxo',
+      actionLabel: tr('notifications.viewFlow'),
       actionTab: 'fluxo' as TabId,
     }))
 
@@ -198,6 +207,10 @@ function setTheme(nextTheme: AppTheme) {
   emit('themeChange', nextTheme)
 }
 
+function handleLanguageChange(event: Event) {
+  emit('languageChange', (event.target as HTMLSelectElement).value as AppLanguage)
+}
+
 function openAvatarPicker() {
   avatarInput.value?.click()
 }
@@ -206,7 +219,7 @@ function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(new Error('Nao foi possivel ler a imagem.'))
+    reader.onerror = () => reject(new Error(tr('profile.imageReadError')))
     reader.readAsDataURL(file)
   })
 }
@@ -215,18 +228,18 @@ function loadImage(source: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image()
     image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error('Nao foi possivel carregar a imagem.'))
+    image.onerror = () => reject(new Error(tr('profile.imageLoadError')))
     image.src = source
   })
 }
 
 async function createAvatarDataUrl(file: File) {
   if (!file.type.startsWith('image/')) {
-    throw new Error('Escolha um arquivo de imagem.')
+    throw new Error(tr('profile.imageTypeError'))
   }
 
   if (file.size > MAX_AVATAR_BYTES) {
-    throw new Error('Use uma imagem de ate 3 MB.')
+    throw new Error(tr('profile.imageSizeError'))
   }
 
   const source = await readFileAsDataUrl(file)
@@ -239,7 +252,7 @@ async function createAvatarDataUrl(file: File) {
   const context = canvas.getContext('2d')
 
   if (!context) {
-    throw new Error('Nao foi possivel preparar a imagem.')
+    throw new Error(tr('profile.imagePrepareError'))
   }
 
   canvas.width = targetSize
@@ -263,10 +276,10 @@ async function handleAvatarSelected(event: Event) {
   try {
     const avatarUrl = await createAvatarDataUrl(file)
     emit('profileUpdated', { ...props.profile, avatarUrl })
-    avatarMessage.value = 'Foto atualizada.'
+    avatarMessage.value = tr('profile.photoUpdated')
     profileMenuOpen.value = false
   } catch (error) {
-    avatarError.value = error instanceof Error ? error.message : 'Nao foi possivel alterar a foto.'
+    avatarError.value = error instanceof Error ? error.message : tr('profile.imageGenericError')
   } finally {
     input.value = ''
   }
@@ -276,7 +289,7 @@ function removeAvatar() {
   const nextProfile: UserProfile = { ...props.profile }
   delete nextProfile.avatarUrl
   emit('profileUpdated', nextProfile)
-  avatarMessage.value = 'Foto removida.'
+  avatarMessage.value = tr('profile.photoRemoved')
   avatarError.value = ''
 }
 
@@ -292,7 +305,7 @@ async function connectAccount() {
     clientUserId: props.profile.id,
     userEmail: props.profile.email,
     onEvent: (payload) => {
-      connectMessage.value = `Evento Pluggy: ${payload.event}`
+      connectMessage.value = tr('pluggy.event', { event: payload.event })
     },
   })
 
@@ -303,22 +316,40 @@ async function connectAccount() {
 
 function newLaunchLabel(bank: BankConnection) {
   if (!bank.newTransactions) {
-    return bank.status
+    return bankStatusLabel(bank.status)
   }
 
-  return `${bank.newTransactions.toLocaleString('pt-BR')} novos lancamentos`
+  return tr('notifications.newTransactionsCount', {
+    count: bank.newTransactions.toLocaleString(props.language),
+  })
+}
+
+function bankStatusLabel(status: BankConnection['status']) {
+  if (status === 'Sincronizado') {
+    return tr('status.synced')
+  }
+
+  if (status === 'Pendente') {
+    return tr('status.pending')
+  }
+
+  return tr('status.noNewTransactions')
+}
+
+function transactionStatusLabel(status: Transaction['status']) {
+  return status === 'Confirmado' ? tr('status.confirmed') : tr('status.planned')
 }
 </script>
 
 <template>
   <section class="dashboard-shell min-h-screen" :data-mode="theme">
     <header class="dashboard-header sticky top-0 z-40 border-b backdrop-blur">
-      <div class="mx-auto flex h-[68px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div class="mx-auto flex h-[68px] max-w-[1480px] items-center justify-between px-4 sm:px-6 lg:px-8">
         <div class="flex items-center gap-3">
           <span class="brand-mark flex size-10 items-center justify-center rounded-lg text-lg font-black">
             iF
           </span>
-          <span class="text-xl font-black">iFinanca</span>
+          <span class="hidden text-xl font-black sm:inline">iFinanca</span>
         </div>
 
         <nav class="hidden items-center gap-2 md:flex">
@@ -334,17 +365,29 @@ function newLaunchLabel(bank: BankConnection) {
         </nav>
 
         <div class="flex items-center gap-2">
+          <label class="sr-only" for="dashboard-language">{{ tr('common.language') }}</label>
+          <select
+            id="dashboard-language"
+            class="select select-sm w-16 border-white/10 bg-transparent text-sm font-bold text-zinc-300 sm:w-20"
+            :value="language"
+            @change="handleLanguageChange"
+          >
+            <option v-for="option in languageOptions" :key="option.value" :value="option.value">
+              {{ option.shortLabel }}
+            </option>
+          </select>
+
           <button
-            :class="['tooltip tooltip-bottom btn btn-ghost btn-square btn-sm', theme === 'light' ? 'text-[#17c964]' : 'text-zinc-400']"
-            data-tip="Tema claro"
+            :class="['tooltip tooltip-bottom btn btn-ghost btn-square btn-sm hidden sm:inline-flex', theme === 'light' ? 'text-[#17c964]' : 'text-zinc-400']"
+            :data-tip="tr('common.themeLight')"
             type="button"
             @click="setTheme('light')"
           >
             <Sun :size="18" />
           </button>
           <button
-            :class="['tooltip tooltip-bottom btn btn-ghost btn-square btn-sm', theme === 'dark' ? 'text-[#17c964]' : 'text-zinc-400']"
-            data-tip="Tema escuro"
+            :class="['tooltip tooltip-bottom btn btn-ghost btn-square btn-sm hidden sm:inline-flex', theme === 'dark' ? 'text-[#17c964]' : 'text-zinc-400']"
+            :data-tip="tr('common.themeDark')"
             type="button"
             @click="setTheme('dark')"
           >
@@ -354,7 +397,7 @@ function newLaunchLabel(bank: BankConnection) {
           <div class="relative">
             <button
               class="tooltip tooltip-bottom btn btn-ghost btn-square btn-sm text-zinc-400"
-              data-tip="Notificacoes"
+              :data-tip="tr('notifications.title')"
               type="button"
               @click="toggleNotifications"
             >
@@ -373,10 +416,10 @@ function newLaunchLabel(bank: BankConnection) {
             >
               <div class="flex items-center justify-between gap-3 px-1 pb-2">
                 <div>
-                  <p class="text-sm font-black">Notificacoes</p>
-                  <p class="text-xs text-zinc-500">{{ unreadNotificationCount }} pendentes</p>
+                  <p class="text-sm font-black">{{ tr('notifications.title') }}</p>
+                  <p class="text-xs text-zinc-500">{{ tr('notifications.pending', { count: unreadNotificationCount }) }}</p>
                 </div>
-                <button class="btn btn-ghost btn-square btn-xs text-zinc-400" type="button" @click="markAllNotificationsRead">
+                <button class="btn btn-ghost btn-square btn-xs text-zinc-400" :title="tr('notifications.markAll')" type="button" @click="markAllNotificationsRead">
                   <CheckCheck :size="16" />
                 </button>
               </div>
@@ -410,7 +453,7 @@ function newLaunchLabel(bank: BankConnection) {
             <button
               class="avatar-button grid size-9 place-items-center overflow-hidden rounded-full bg-[#17c964] text-sm font-black leading-none text-[#06130a]"
               type="button"
-              aria-label="Abrir menu do perfil"
+              :aria-label="tr('profile.openMenu')"
               @click="toggleProfileMenu"
             >
               <img v-if="profile.avatarUrl" class="h-full w-full object-cover" :src="profile.avatarUrl" alt="" />
@@ -437,11 +480,15 @@ function newLaunchLabel(bank: BankConnection) {
               <div class="mt-4 grid gap-2">
                 <button class="btn btn-sm justify-start border-0 bg-[#17c964] text-[#06130a] hover:bg-[#13b45a]" type="button" @click="openAvatarPicker">
                   <Camera :size="16" />
-                  Alterar foto
+                  {{ tr('profile.changePhoto') }}
                 </button>
                 <button class="btn btn-sm justify-start border-white/10 bg-transparent text-zinc-300 hover:bg-white/10" type="button" @click="removeAvatar">
                   <Trash2 :size="16" />
-                  Remover foto
+                  {{ tr('profile.removePhoto') }}
+                </button>
+                <button class="btn btn-sm justify-start border-white/10 bg-transparent text-zinc-300 hover:bg-white/10 sm:hidden" type="button" @click="emit('logout')">
+                  <LogOut :size="16" />
+                  {{ tr('common.logout') }}
                 </button>
               </div>
 
@@ -449,7 +496,7 @@ function newLaunchLabel(bank: BankConnection) {
               <p v-if="avatarError" class="mt-3 text-sm font-semibold text-[#ff6b7f]">{{ avatarError }}</p>
             </div>
           </div>
-          <button class="tooltip tooltip-bottom btn btn-ghost btn-square btn-sm text-zinc-400" data-tip="Sair" type="button" @click="emit('logout')">
+          <button class="tooltip tooltip-bottom btn btn-ghost btn-square btn-sm hidden text-zinc-400 sm:inline-flex" :data-tip="tr('common.logout')" type="button" @click="emit('logout')">
             <LogOut :size="18" />
           </button>
           <button class="btn btn-ghost btn-square btn-sm text-zinc-400 md:hidden" type="button" @click="menuOpen = !menuOpen">
@@ -460,6 +507,16 @@ function newLaunchLabel(bank: BankConnection) {
       </div>
 
       <nav v-if="menuOpen" class="grid gap-2 border-t border-white/10 px-4 py-3 md:hidden">
+        <div class="grid grid-cols-2 gap-2 sm:hidden">
+          <button class="btn btn-sm border-white/10 bg-transparent text-zinc-300" type="button" @click="setTheme('light')">
+            <Sun :size="16" />
+            {{ tr('common.themeLight') }}
+          </button>
+          <button class="btn btn-sm border-white/10 bg-transparent text-zinc-300" type="button" @click="setTheme('dark')">
+            <Moon :size="16" />
+            {{ tr('common.themeDark') }}
+          </button>
+        </div>
         <button
           v-for="tab in tabs"
           :key="tab.id"
@@ -472,22 +529,22 @@ function newLaunchLabel(bank: BankConnection) {
       </nav>
     </header>
 
-    <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div class="grid gap-8 xl:grid-cols-[250px_1fr]">
+    <div class="mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <div class="grid gap-8 xl:grid-cols-[260px_1fr] 2xl:grid-cols-[300px_1fr]">
         <aside class="hidden xl:block">
           <div class="sticky top-24 space-y-3">
             <button class="keep-white btn w-full justify-start border-0 bg-[#f52a55] text-white hover:bg-[#e1264f]" type="button" @click="connectAccount">
               <Link2 :size="18" />
-              Conectar conta
+              {{ tr('dashboard.connectAccount') }}
             </button>
             <div class="rounded-lg border border-white/10 bg-[#101318] p-4">
-              <p class="text-sm font-bold text-zinc-400">Sincronizacao</p>
-              <p class="mt-2 text-2xl font-black text-white">4 bancos</p>
-              <p class="mt-1 text-sm text-zinc-500">Futuros lancamentos importados a cada 6 horas.</p>
+              <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.sync') }}</p>
+              <p class="mt-2 text-2xl font-black text-white">{{ tr('dashboard.banksCount') }}</p>
+              <p class="mt-1 text-sm text-zinc-500">{{ tr('dashboard.futureImports') }}</p>
             </div>
             <div class="rounded-lg border border-white/10 bg-[#101318] p-4">
-              <p class="text-sm font-bold text-zinc-400">Item Pluggy</p>
-              <p class="mt-2 break-all text-sm text-[#76eaa2]">{{ connectedItemId || 'Aguardando conexao' }}</p>
+              <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.pluggyItem') }}</p>
+              <p class="mt-2 break-all text-sm text-[#76eaa2]">{{ connectedItemId || tr('dashboard.waitingConnection') }}</p>
             </div>
           </div>
         </aside>
@@ -495,17 +552,17 @@ function newLaunchLabel(bank: BankConnection) {
         <div class="min-w-0">
           <div class="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <p class="text-sm font-bold uppercase text-[#17c964]">{{ activeTab }}</p>
+              <p class="text-sm font-bold uppercase text-[#17c964]">{{ activeTabLabel }}</p>
               <h1 class="mt-2 text-4xl font-black text-white sm:text-5xl">{{ activeTabLabel }}</h1>
               <p class="mt-3 max-w-2xl text-zinc-400">
-                Bom dia, {{ firstName }}. Seus dados financeiros ficam em um so lugar, com conexoes bancarias, fluxo e patrimonio.
+                {{ tr('dashboard.greeting', { name: firstName }) }}
               </p>
             </div>
 
             <button class="keep-white btn border-0 bg-[#f52a55] text-white hover:bg-[#e1264f] xl:hidden" :disabled="isConnecting" type="button" @click="connectAccount">
               <span v-if="isConnecting" class="loading loading-spinner loading-sm"></span>
               <Link2 v-else :size="18" />
-              Conectar conta
+              {{ tr('dashboard.connectAccount') }}
             </button>
           </div>
 
@@ -518,38 +575,38 @@ function newLaunchLabel(bank: BankConnection) {
             <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
                 <div class="flex items-center justify-between text-zinc-400">
-                  <span class="text-sm font-bold">Saldo geral</span>
+                  <span class="text-sm font-bold">{{ tr('dashboard.totalBalance') }}</span>
                   <Eye :size="18" />
                 </div>
-                <p class="mt-4 text-3xl font-black">{{ formatCurrency(totalBalance) }}</p>
-                <p class="mt-2 text-sm font-semibold text-[#76eaa2]">+8,4% no mes</p>
+                <p class="mt-4 text-3xl font-black">{{ formatMoney(totalBalance, language) }}</p>
+                <p class="mt-2 text-sm font-semibold text-[#76eaa2]">{{ tr('dashboard.monthGrowth') }}</p>
               </div>
 
               <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
                 <div class="flex items-center justify-between text-zinc-400">
-                  <span class="text-sm font-bold">Entradas</span>
+                  <span class="text-sm font-bold">{{ tr('dashboard.income') }}</span>
                   <CircleDollarSign :size="18" />
                 </div>
-                <p class="mt-4 text-3xl font-black">{{ formatCurrency(incomeTotal) }}</p>
-                <p class="mt-2 text-sm font-semibold text-[#76eaa2]">Confirmadas</p>
+                <p class="mt-4 text-3xl font-black">{{ formatMoney(incomeTotal, language) }}</p>
+                <p class="mt-2 text-sm font-semibold text-[#76eaa2]">{{ tr('dashboard.confirmed') }}</p>
               </div>
 
               <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
                 <div class="flex items-center justify-between text-zinc-400">
-                  <span class="text-sm font-bold">Saidas</span>
+                  <span class="text-sm font-bold">{{ tr('dashboard.outcome') }}</span>
                   <CreditCard :size="18" />
                 </div>
-                <p class="mt-4 text-3xl font-black">{{ formatCurrency(outcomeTotal) }}</p>
-                <p class="mt-2 text-sm font-semibold text-[#ff6b7f]">Previstas e pagas</p>
+                <p class="mt-4 text-3xl font-black">{{ formatMoney(outcomeTotal, language) }}</p>
+                <p class="mt-2 text-sm font-semibold text-[#ff6b7f]">{{ tr('dashboard.plannedPaid') }}</p>
               </div>
 
               <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
                 <div class="flex items-center justify-between text-zinc-400">
-                  <span class="text-sm font-bold">Patrimonio</span>
+                  <span class="text-sm font-bold">{{ tr('dashboard.netWorth') }}</span>
                   <PiggyBank :size="18" />
                 </div>
-                <p class="mt-4 text-3xl font-black">{{ formatCurrency(assetTotal) }}</p>
-                <p class="mt-2 text-sm font-semibold text-[#7db4ff]">Ativos conectados</p>
+                <p class="mt-4 text-3xl font-black">{{ formatMoney(assetTotal, language) }}</p>
+                <p class="mt-2 text-sm font-semibold text-[#7db4ff]">{{ tr('dashboard.connectedAssets') }}</p>
               </div>
             </section>
 
@@ -557,8 +614,8 @@ function newLaunchLabel(bank: BankConnection) {
               <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
                 <div class="mb-5 flex items-center justify-between">
                   <div>
-                    <p class="text-sm font-bold text-zinc-400">Fluxo mensal</p>
-                    <h2 class="mt-1 text-2xl font-black">Receitas e gastos</h2>
+                    <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.monthlyFlow') }}</p>
+                    <h2 class="mt-1 text-2xl font-black">{{ tr('dashboard.incomeOutcome') }}</h2>
                   </div>
                   <ChartNoAxesColumnIncreasing class="text-[#f52a55]" :size="24" />
                 </div>
@@ -577,8 +634,8 @@ function newLaunchLabel(bank: BankConnection) {
               <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
                 <div class="mb-5 flex items-center justify-between">
                   <div>
-                    <p class="text-sm font-bold text-zinc-400">Minhas contas</p>
-                    <h2 class="mt-1 text-2xl font-black">Conectadas</h2>
+                    <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.myAccounts') }}</p>
+                    <h2 class="mt-1 text-2xl font-black">{{ tr('dashboard.connected') }}</h2>
                   </div>
                   <button class="btn btn-square btn-sm border-0 bg-white/10 text-white hover:bg-white/20" type="button" @click="activeTab = 'conexoes'">
                     <ArrowRight :size="17" />
@@ -593,10 +650,10 @@ function newLaunchLabel(bank: BankConnection) {
                     </div>
                     <div class="text-right">
                       <p :class="account.amount >= 0 ? 'text-[#7db4ff]' : 'text-[#ff6b7f]'" class="font-black">
-                        {{ formatCurrency(account.amount) }}
+                        {{ formatMoney(account.amount, language) }}
                       </p>
                       <p :class="account.variation >= 0 ? 'text-[#76eaa2]' : 'text-[#ff6b7f]'" class="text-xs font-bold">
-                        {{ formatPercent(account.variation) }}
+                        {{ formatSignedPercent(account.variation, language) }}
                       </p>
                     </div>
                   </div>
@@ -606,8 +663,8 @@ function newLaunchLabel(bank: BankConnection) {
 
             <section class="grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
               <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
-                <p class="text-sm font-bold text-zinc-400">Distribuicao</p>
-                <h2 class="mt-1 text-2xl font-black">Ativos</h2>
+                <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.distribution') }}</p>
+                <h2 class="mt-1 text-2xl font-black">{{ tr('nav.assets') }}</h2>
                 <div class="mt-5 space-y-4">
                   <div v-for="asset in assets" :key="asset.id">
                     <div class="mb-2 flex items-center justify-between text-sm">
@@ -622,8 +679,8 @@ function newLaunchLabel(bank: BankConnection) {
               <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
                 <div class="mb-5 flex items-center justify-between">
                   <div>
-                    <p class="text-sm font-bold text-zinc-400">Lancamentos</p>
-                    <h2 class="mt-1 text-2xl font-black">Recentes</h2>
+                    <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.transactions') }}</p>
+                    <h2 class="mt-1 text-2xl font-black">{{ tr('dashboard.recentTransactions') }}</h2>
                   </div>
                   <ReceiptText class="text-[#17c964]" :size="24" />
                 </div>
@@ -632,10 +689,10 @@ function newLaunchLabel(bank: BankConnection) {
                   <table class="table">
                     <thead>
                       <tr class="border-white/10 text-zinc-500">
-                        <th>Descricao</th>
-                        <th>Banco</th>
-                        <th>Status</th>
-                        <th class="text-right">Valor</th>
+                        <th>{{ tr('dashboard.description') }}</th>
+                        <th>{{ tr('dashboard.bank') }}</th>
+                        <th>{{ tr('dashboard.status') }}</th>
+                        <th class="text-right">{{ tr('dashboard.value') }}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -646,10 +703,10 @@ function newLaunchLabel(bank: BankConnection) {
                         </td>
                         <td class="text-zinc-300">{{ transaction.bank }}</td>
                         <td>
-                          <span class="badge border-white/10 bg-white/5 text-zinc-300">{{ transaction.status }}</span>
+                          <span class="badge border-white/10 bg-white/5 text-zinc-300">{{ transactionStatusLabel(transaction.status) }}</span>
                         </td>
                         <td :class="transaction.amount >= 0 ? 'text-[#76eaa2]' : 'text-[#ff6b7f]'" class="text-right font-black">
-                          {{ formatCurrency(transaction.amount) }}
+                          {{ formatMoney(transaction.amount, language) }}
                         </td>
                       </tr>
                     </tbody>
@@ -684,11 +741,11 @@ function newLaunchLabel(bank: BankConnection) {
           <div v-else-if="activeTab === 'ativos'" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <article v-for="asset in assets" :key="asset.id" class="rounded-lg border border-white/10 bg-[#101318] p-5">
               <Wallet class="mb-8" :style="{ color: asset.tone }" :size="28" />
-              <p class="text-sm font-bold text-zinc-400">{{ asset.allocation }}% alocado</p>
+              <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.allocation', { value: asset.allocation }) }}</p>
               <h2 class="mt-2 text-2xl font-black">{{ asset.name }}</h2>
-              <p class="mt-4 text-3xl font-black">{{ formatCurrency(asset.amount) }}</p>
+              <p class="mt-4 text-3xl font-black">{{ formatMoney(asset.amount, language) }}</p>
               <p :class="asset.variation >= 0 ? 'text-[#76eaa2]' : 'text-[#ff6b7f]'" class="mt-2 text-sm font-black">
-                {{ formatPercent(asset.variation) }}
+                {{ formatSignedPercent(asset.variation, language) }}
               </p>
             </article>
           </div>
@@ -696,8 +753,8 @@ function newLaunchLabel(bank: BankConnection) {
           <div v-else class="rounded-lg border border-white/10 bg-[#101318] p-5">
             <div class="mb-5 flex items-center justify-between">
               <div>
-                <p class="text-sm font-bold text-zinc-400">Fluxo previsto</p>
-                <h2 class="mt-1 text-2xl font-black">Proximos lancamentos</h2>
+                <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.plannedFlow') }}</p>
+                <h2 class="mt-1 text-2xl font-black">{{ tr('dashboard.nextTransactions') }}</h2>
               </div>
               <Plus class="text-[#17c964]" :size="24" />
             </div>
@@ -709,7 +766,7 @@ function newLaunchLabel(bank: BankConnection) {
                   <p class="text-sm text-zinc-500">{{ transaction.category }} - {{ transaction.date }}</p>
                 </div>
                 <p :class="transaction.amount >= 0 ? 'text-[#76eaa2]' : 'text-[#ff6b7f]'" class="font-black">
-                  {{ formatCurrency(transaction.amount) }}
+                  {{ formatMoney(transaction.amount, language) }}
                 </p>
               </div>
             </div>

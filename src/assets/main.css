@@ -15,6 +15,8 @@
 html {
   min-width: 320px;
   background: #06070a;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -31,6 +33,10 @@ button,
 input,
 select {
   font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
 }
 
 #app {
@@ -50,6 +56,10 @@ select {
 
 .dock button {
   min-height: 4.25rem;
+}
+
+.dock {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .ifinanca-app {
@@ -110,7 +120,13 @@ select {
 }
 
 .dashboard-notification:hover {
-  background: color-mix(in srgb, var(--dash-soft) 86%, #17c964);
+  background: #102118;
+}
+
+@supports (background: color-mix(in srgb, #000 80%, #fff)) {
+  .dashboard-notification:hover {
+    background: color-mix(in srgb, var(--dash-soft) 86%, #17c964);
+  }
 }
 
 .dashboard-shell .bg-\[\#101318\] {

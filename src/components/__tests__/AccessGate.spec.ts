@@ -38,7 +38,7 @@ vi.mock('@/services/firebase', () => ({
 
 describe('AccessGate', () => {
   it('keeps the user on the access screen after registration until email verification', async () => {
-    const wrapper = mount(AccessGate)
+    const wrapper = mount(AccessGate, { props: { language: 'pt-BR' } })
 
     await wrapper.get('input[type="text"]').setValue('Thiago Costa')
     await wrapper.get('input[type="email"]').setValue('thiago@example.com')
@@ -57,7 +57,7 @@ describe('AccessGate', () => {
   })
 
   it('emits a profile after a verified login', async () => {
-    const wrapper = mount(AccessGate)
+    const wrapper = mount(AccessGate, { props: { language: 'pt-BR' } })
     const loginButton = wrapper.findAll('button').find((button) => button.text() === 'Entrar')
 
     expect(loginButton).toBeTruthy()
@@ -80,7 +80,7 @@ describe('AccessGate', () => {
   })
 
   it('emits a profile after Google authentication', async () => {
-    const wrapper = mount(AccessGate)
+    const wrapper = mount(AccessGate, { props: { language: 'pt-BR' } })
 
     await wrapper.findAll('button').find((button) => button.text().includes('Continuar com Google'))!.trigger('click')
     await flushPromises()

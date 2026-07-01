@@ -24,7 +24,7 @@ import {
   updateDoc,
   type Firestore,
 } from 'firebase/firestore/lite'
-import type { AccessGoal, UserProfile } from '@/types/finance'
+import type { AccessGoal, AppLanguage, UserProfile } from '@/types/finance'
 
 export interface RegisterProfileInput {
   name: string
@@ -276,27 +276,69 @@ export async function updateUserProfileDocument(profile: UserProfile) {
   })
 }
 
-export function getFirebaseAuthErrorMessage(error: unknown) {
+export function getFirebaseAuthErrorMessage(error: unknown, language: AppLanguage = 'pt-BR') {
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
 
-  const messages: Record<string, string> = {
-    'auth/email-already-in-use': 'Este e-mail ja possui uma conta.',
-    'auth/email-not-verified': 'Confirme seu e-mail antes de entrar. Enviamos um novo link de verificacao.',
-    'auth/invalid-credential': 'E-mail ou senha invalidos.',
-    'auth/invalid-email': 'Informe um e-mail valido.',
-    'auth/missing-password': 'Informe sua senha.',
-    'auth/network-request-failed': 'Falha de rede. Verifique sua conexao.',
-    'auth/operation-not-allowed': 'Habilite o provedor Email/Senha no Firebase Authentication.',
-    'auth/account-exists-with-different-credential': 'Este e-mail ja esta cadastrado com outro metodo de acesso.',
-    'auth/cancelled-popup-request': 'A janela do Google foi cancelada.',
-    'auth/popup-blocked': 'O navegador bloqueou a janela do Google. Permita pop-ups para continuar.',
-    'auth/popup-closed-by-user': 'A janela do Google foi fechada antes de concluir.',
-    'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos.',
-    'auth/unauthorized-domain': 'Adicione este dominio nos dominios autorizados do Firebase Authentication.',
-    'auth/user-not-found': 'Conta nao encontrada.',
-    'auth/weak-password': 'Use uma senha com pelo menos 6 caracteres.',
-    'auth/wrong-password': 'E-mail ou senha invalidos.',
+  const messages: Record<AppLanguage, Record<string, string>> = {
+    'pt-BR': {
+      'auth/email-already-in-use': 'Este e-mail ja possui uma conta.',
+      'auth/email-not-verified': 'Confirme seu e-mail antes de entrar. Enviamos um novo link de verificacao.',
+      'auth/invalid-credential': 'E-mail ou senha invalidos.',
+      'auth/invalid-email': 'Informe um e-mail valido.',
+      'auth/missing-password': 'Informe sua senha.',
+      'auth/network-request-failed': 'Falha de rede. Verifique sua conexao.',
+      'auth/operation-not-allowed': 'Habilite o provedor Email/Senha ou Google no Firebase Authentication.',
+      'auth/account-exists-with-different-credential': 'Este e-mail ja esta cadastrado com outro metodo de acesso.',
+      'auth/cancelled-popup-request': 'A janela do Google foi cancelada.',
+      'auth/popup-blocked': 'O navegador bloqueou a janela do Google. Permita pop-ups para continuar.',
+      'auth/popup-closed-by-user': 'A janela do Google foi fechada antes de concluir.',
+      'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos.',
+      'auth/unauthorized-domain': 'Adicione este dominio nos dominios autorizados do Firebase Authentication.',
+      'auth/user-not-found': 'Conta nao encontrada.',
+      'auth/weak-password': 'Use uma senha com pelo menos 6 caracteres.',
+      'auth/wrong-password': 'E-mail ou senha invalidos.',
+    },
+    'en-US': {
+      'auth/email-already-in-use': 'This email already has an account.',
+      'auth/email-not-verified': 'Confirm your email before signing in. We sent a new verification link.',
+      'auth/invalid-credential': 'Invalid email or password.',
+      'auth/invalid-email': 'Enter a valid email.',
+      'auth/missing-password': 'Enter your password.',
+      'auth/network-request-failed': 'Network error. Check your connection.',
+      'auth/operation-not-allowed': 'Enable Email/Password or Google in Firebase Authentication.',
+      'auth/account-exists-with-different-credential': 'This email is already registered with another access method.',
+      'auth/cancelled-popup-request': 'The Google window was cancelled.',
+      'auth/popup-blocked': 'The browser blocked the Google window. Allow pop-ups to continue.',
+      'auth/popup-closed-by-user': 'The Google window was closed before finishing.',
+      'auth/too-many-requests': 'Too many attempts. Wait a few minutes.',
+      'auth/unauthorized-domain': 'Add this domain to Firebase Authentication authorized domains.',
+      'auth/user-not-found': 'Account not found.',
+      'auth/weak-password': 'Use a password with at least 6 characters.',
+      'auth/wrong-password': 'Invalid email or password.',
+    },
+    'es-ES': {
+      'auth/email-already-in-use': 'Este email ya tiene una cuenta.',
+      'auth/email-not-verified': 'Confirma tu email antes de entrar. Enviamos un nuevo enlace de verificacion.',
+      'auth/invalid-credential': 'Email o contrasena invalidos.',
+      'auth/invalid-email': 'Ingresa un email valido.',
+      'auth/missing-password': 'Ingresa tu contrasena.',
+      'auth/network-request-failed': 'Error de red. Verifica tu conexion.',
+      'auth/operation-not-allowed': 'Habilita Email/Contrasena o Google en Firebase Authentication.',
+      'auth/account-exists-with-different-credential': 'Este email ya esta registrado con otro metodo de acceso.',
+      'auth/cancelled-popup-request': 'La ventana de Google fue cancelada.',
+      'auth/popup-blocked': 'El navegador bloqueo la ventana de Google. Permite pop-ups para continuar.',
+      'auth/popup-closed-by-user': 'La ventana de Google se cerro antes de terminar.',
+      'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos.',
+      'auth/unauthorized-domain': 'Agrega este dominio a los dominios autorizados de Firebase Authentication.',
+      'auth/user-not-found': 'Cuenta no encontrada.',
+      'auth/weak-password': 'Usa una contrasena de al menos 6 caracteres.',
+      'auth/wrong-password': 'Email o contrasena invalidos.',
+    },
   }
 
-  return messages[code] || 'Nao foi possivel concluir a autenticacao agora.'
+  return messages[language][code] || messages['pt-BR'][code] || {
+    'pt-BR': 'Nao foi possivel concluir a autenticacao agora.',
+    'en-US': 'Could not complete authentication right now.',
+    'es-ES': 'No fue posible completar la autenticacion ahora.',
+  }[language]
 }

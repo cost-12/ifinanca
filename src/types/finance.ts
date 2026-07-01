@@ -15,6 +15,7 @@ export interface UserProfile {
 }
 
 export type AppTheme = 'dark' | 'light'
+export type AppLanguage = 'pt-BR' | 'en-US' | 'es-ES'
 
 export interface BankConnection {
   id: string
