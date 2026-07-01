@@ -15,6 +15,28 @@ function getConnectToken(payload) {
   return payload?.accessToken ?? payload?.connectToken ?? payload?.token
 }
 
+function buildConnectTokenOptions({ clientUserId, options }) {
+  const connectOptions = {
+    avoidDuplicates: typeof options?.avoidDuplicates === 'boolean' ? options.avoidDuplicates : true,
+  }
+
+  if (typeof clientUserId === 'string' && clientUserId.trim()) {
+    connectOptions.clientUserId = clientUserId.trim()
+  } else if (typeof options?.clientUserId === 'string' && options.clientUserId.trim()) {
+    connectOptions.clientUserId = options.clientUserId.trim()
+  }
+
+  if (typeof options?.webhookUrl === 'string' && options.webhookUrl.trim()) {
+    connectOptions.webhookUrl = options.webhookUrl.trim()
+  }
+
+  if (typeof options?.oauthRedirectUri === 'string' && options.oauthRedirectUri.trim()) {
+    connectOptions.oauthRedirectUri = options.oauthRedirectUri.trim()
+  }
+
+  return connectOptions
+}
+
 async function parseJsonResponse(response, fallbackMessage) {
   const body = await response.json().catch(() => ({}))
 
@@ -39,6 +61,7 @@ export const createPluggyConnectToken = onRequest(
     }
 
     const { clientUserId, itemId, options = {} } = request.body ?? {}
+    const connectOptions = buildConnectTokenOptions({ clientUserId, options })
 
     try {
       const authResponse = await fetch(`${PLUGGY_API_URL}/auth`, {
@@ -69,11 +92,7 @@ export const createPluggyConnectToken = onRequest(
         },
         body: JSON.stringify({
           ...(itemId ? { itemId } : {}),
-          options: {
-            ...options,
-            ...(clientUserId ? { clientUserId } : {}),
-            avoidDuplicates: options.avoidDuplicates ?? true,
-          },
+          options: connectOptions,
         }),
       })
 
@@ -89,6 +108,7 @@ export const createPluggyConnectToken = onRequest(
 
       response.status(200).json({
         connectToken,
+        accessToken: connectToken,
         expiresAt: connectTokenPayload.expiresAt ?? null,
       })
     } catch (error) {

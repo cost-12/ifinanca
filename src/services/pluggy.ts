@@ -13,6 +13,7 @@ export interface PluggyConnectionResult {
 }
 
 interface ConnectTokenResponse {
+  accessToken?: string
   connectToken?: string
   token?: string
 }
@@ -44,7 +45,7 @@ async function fetchConnectToken(request: PluggyConnectionRequest) {
   }
 
   const payload = (await response.json()) as ConnectTokenResponse
-  const connectToken = payload.connectToken ?? payload.token
+  const connectToken = payload.connectToken ?? payload.accessToken ?? payload.token
 
   if (!connectToken) {
     throw new Error('Endpoint Pluggy nao retornou connectToken')

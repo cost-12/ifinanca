@@ -1,15 +1,22 @@
 # Pluggy + Firebase
 
-Este projeto deixa o front pronto para abrir o Pluggy Connect Widget. A parte sensivel precisa ficar em backend, porque `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` nao podem ir para o navegador.
+Este projeto deixa o front pronto para abrir o Pluggy Connect Widget. A parte sensivel fica em backend, porque `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` nao podem ir para o navegador.
 
-## Fluxo
+## Fluxo oficial
 
 1. O usuario cria o cadastro no iFinanca.
 2. O dashboard chama `VITE_PLUGGY_CONNECT_TOKEN_URL`.
-3. Uma Firebase Function usa credenciais Pluggy em ambiente seguro.
-4. A Function retorna `{ "connectToken": "..." }`.
-5. O front abre o widget via `pluggy-connect-sdk`.
-6. O `item.id` retornado pode ser salvo no Firestore e sincronizado por webhook.
+3. A Firebase Function chama `POST https://api.pluggy.ai/auth`.
+4. A Pluggy valida `clientId` e `clientSecret` e retorna `apiKey`.
+5. A Function chama `POST https://api.pluggy.ai/connect_token` com header `X-API-KEY`.
+6. A Pluggy retorna `accessToken`.
+7. A Function normaliza a resposta para `{ "connectToken": "..." }`.
+8. O front usa esse token no `pluggy-connect-sdk`.
+
+Referencias:
+
+- Create API Key: https://docs.pluggy.ai/reference/auth-create
+- Create Connect Token: https://docs.pluggy.ai/reference/connect-token-create
 
 ## Contrato esperado pelo front
 
@@ -35,9 +42,24 @@ Response:
 
 ```json
 {
-  "connectToken": "pluggy-connect-token"
+  "connectToken": "pluggy-connect-token",
+  "accessToken": "pluggy-connect-token",
+  "expiresAt": null
 }
 ```
+
+O front aceita `connectToken`, `accessToken` ou `token`, mas a Function do projeto retorna `connectToken` para manter o contrato claro.
+
+## Options suportadas
+
+A Function repassa para `/connect_token` apenas as opcoes suportadas pela documentacao da Pluggy:
+
+- `clientUserId`: identificador interno do usuario para rastreabilidade.
+- `webhookUrl`: webhook especifico para eventos do item criado.
+- `oauthRedirectUri`: URL de retorno apos fluxo OAuth.
+- `avoidDuplicates`: evita criar um novo item se ja existir outro com as mesmas credenciais.
+
+Para atualizar uma conexao existente, envie `itemId` no corpo da chamada. A propria Pluggy exige esse campo no modo update.
 
 ## Function incluida no projeto
 
@@ -57,32 +79,31 @@ A URL esperada no `.env.local` e:
 VITE_PLUGGY_CONNECT_TOKEN_URL=https://southamerica-east1-pluggy-firebase.cloudfunctions.net/createPluggyConnectToken
 ```
 
-## Exemplo de Function
+## cURL de referencia
 
-```ts
-import { onRequest } from 'firebase-functions/v2/https'
-import { PluggyClient } from 'pluggy-sdk'
+Gerar API key:
 
-export const createPluggyConnectToken = onRequest({ cors: true }, async (request, response) => {
-  if (request.method !== 'POST') {
-    response.status(405).json({ error: 'Method not allowed' })
-    return
-  }
-
-  const client = new PluggyClient({
-    clientId: process.env.PLUGGY_CLIENT_ID!,
-    clientSecret: process.env.PLUGGY_CLIENT_SECRET!,
-  })
-
-  const token = await client.createConnectToken({
-    options: {
-      clientUserId: request.body.clientUserId,
-      avoidDuplicates: true,
-    },
-  })
-
-  response.json({ connectToken: token.accessToken ?? token.connectToken ?? token })
-})
+```sh
+curl --request POST \
+  --url https://api.pluggy.ai/auth \
+  --header "content-type: application/json" \
+  --data "{\"clientId\":\"$PLUGGY_CLIENT_ID\",\"clientSecret\":\"$PLUGGY_CLIENT_SECRET\"}"
 ```
 
-O formato exato do retorno pode variar conforme a versao do SDK. O front aceita `connectToken` ou `token`.
+Gerar connect token:
+
+```sh
+curl --request POST \
+  --url https://api.pluggy.ai/connect_token \
+  --header "X-API-KEY: $PLUGGY_API_KEY" \
+  --header "content-type: application/json" \
+  --data "{\"options\":{\"clientUserId\":\"profile-id\",\"avoidDuplicates\":true}}"
+```
+
+Resposta oficial da Pluggy:
+
+```json
+{
+  "accessToken": "pluggy-connect-token"
+}
+```
