@@ -79,18 +79,26 @@ async function submitAccess() {
   successMessage.value = ''
 
   try {
-    const profile = isRegisterMode.value
-      ? await registerWithEmailProfile({
-          name: form.name,
-          email: form.email,
-          password: form.password,
-          goal: form.goal,
-          monthlyIncome: Number(form.monthlyIncome),
-        })
-      : await loginWithEmailProfile({
-          email: form.email,
-          password: form.password,
-        })
+    if (isRegisterMode.value) {
+      await registerWithEmailProfile({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        goal: form.goal,
+        monthlyIncome: Number(form.monthlyIncome),
+      })
+
+      successMessage.value = 'Conta criada. Enviamos um link de verificacao para seu e-mail. Confirme antes de entrar.'
+      authMode.value = 'login'
+      form.password = ''
+      form.confirmPassword = ''
+      return
+    }
+
+    const profile = await loginWithEmailProfile({
+      email: form.email,
+      password: form.password,
+    })
 
     emit('authenticated', profile)
   } catch (error) {

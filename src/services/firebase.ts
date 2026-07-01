@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
@@ -34,6 +35,11 @@ export interface RegisterProfileInput {
 export interface LoginInput {
   email: string
   password: string
+}
+
+export interface RegisterResult {
+  profile: UserProfile
+  emailVerificationSent: boolean
 }
 
 type FirestoreProfileData = Partial<UserProfile> & {
@@ -108,6 +114,10 @@ function resolveGoal(goal: unknown): AccessGoal {
   return typeof goal === 'string' && validGoals.has(goal as AccessGoal) ? (goal as AccessGoal) : defaultGoal
 }
 
+function createAuthFlowError(code: string, message: string) {
+  return Object.assign(new Error(message), { code })
+}
+
 function profileFromUser(user: User, data: FirestoreProfileData = {}): UserProfile {
   return {
     id: user.uid,
@@ -171,16 +181,33 @@ export async function registerWithEmailProfile(input: RegisterProfileInput) {
 
   await updateProfile(credential.user, { displayName: name })
 
-  return writeInitialProfile(credential.user, {
+  const profile = await writeInitialProfile(credential.user, {
     ...input,
     name,
     email,
   })
+
+  await sendEmailVerification(credential.user)
+  await signOut(auth)
+
+  return {
+    profile,
+    emailVerificationSent: true,
+  } satisfies RegisterResult
 }
 
 export async function loginWithEmailProfile(input: LoginInput) {
   const { auth } = getFirebaseServices()
   const credential = await signInWithEmailAndPassword(auth, normalizeEmail(input.email), input.password)
+
+  await credential.user.reload()
+
+  if (!credential.user.emailVerified) {
+    await sendEmailVerification(credential.user)
+    await signOut(auth)
+    throw createAuthFlowError('auth/email-not-verified', 'E-mail ainda nao verificado.')
+  }
+
   return getCurrentUserProfile(credential.user)
 }
 
@@ -222,6 +249,7 @@ export function getFirebaseAuthErrorMessage(error: unknown) {
 
   const messages: Record<string, string> = {
     'auth/email-already-in-use': 'Este e-mail ja possui uma conta.',
+    'auth/email-not-verified': 'Confirme seu e-mail antes de entrar. Enviamos um novo link de verificacao.',
     'auth/invalid-credential': 'E-mail ou senha invalidos.',
     'auth/invalid-email': 'Informe um e-mail valido.',
     'auth/missing-password': 'Informe sua senha.',

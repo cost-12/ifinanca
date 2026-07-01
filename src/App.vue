@@ -77,6 +77,14 @@ onMounted(() => {
       return
     }
 
+    if (!user.emailVerified) {
+      clearProfile()
+      authMessage.value = 'Confirme seu e-mail antes de entrar na plataforma.'
+      await logoutUser()
+      authReady.value = true
+      return
+    }
+
     try {
       persistProfile(await getCurrentUserProfile(user))
     } catch (error) {

@@ -10,6 +10,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function hasVerifiedEmail() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
     function profileKeys() {
       return [
         'id',
@@ -78,9 +82,11 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
 
-      allow read: if isOwner(userId);
+      allow read: if isOwner(userId)
+        && hasVerifiedEmail();
 
       allow update: if isOwner(userId)
+        && hasVerifiedEmail()
         && isValidProfileData(userId)
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time

@@ -182,11 +182,12 @@ VITE_PLUGGY_CONNECT_TOKEN_URL=/api/connect-token
 
 ## Firebase Auth e regras
 
-Habilite Email/Senha no Firebase Authentication. O app so exibe o dashboard apos `onAuthStateChanged` confirmar uma sessao ativa.
+Habilite Email/Senha no Firebase Authentication. O cadastro envia `sendEmailVerification`, encerra a sessao e mostra a tela de login. O app so exibe o dashboard apos `onAuthStateChanged` confirmar uma sessao ativa com `emailVerified === true`.
 
 As regras em `firestore.rules`:
 
-- permitem leitura/criacao/edicao apenas em `users/{uid}` do proprio usuario;
+- permitem criacao inicial em `users/{uid}` pelo proprio usuario autenticado;
+- permitem leitura/edicao apenas para o proprio usuario com e-mail verificado;
 - validam campos do perfil, objetivo, renda mensal e tamanho do avatar;
 - bloqueiam deletes de perfil;
 - bloqueiam a antiga colecao anonima `ifinanca_leads`;
