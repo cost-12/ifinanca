@@ -41,6 +41,11 @@ __screenshots__/
 
 # Firebase
 .firebase/
+firebase-debug.log
+
+# Agent/tool caches
+.agents/
+skills-lock.json
 
 # Cloudflare
 .wrangler/
