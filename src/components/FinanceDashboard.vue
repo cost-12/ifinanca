@@ -3,7 +3,9 @@ import { computed, ref } from 'vue'
 import {
   ArrowRight,
   Bell,
+  Camera,
   ChartNoAxesColumnIncreasing,
+  CheckCheck,
   CircleDollarSign,
   CreditCard,
   Eye,
@@ -19,6 +21,7 @@ import {
   ShieldCheck,
   Sun,
   TrendingUp,
+  Trash2,
   Wallet,
   X,
 } from '@lucide/vue'
@@ -32,17 +35,34 @@ import {
   transactions,
 } from '@/data/finance'
 import { openPluggyConnect } from '@/services/pluggy'
-import type { BankConnection, UserProfile } from '@/types/finance'
+import type { AppTheme, BankConnection, UserProfile } from '@/types/finance'
 
 const props = defineProps<{
   profile: UserProfile
+  theme: AppTheme
 }>()
 
 const emit = defineEmits<{
   logout: []
+  profileUpdated: [profile: UserProfile]
+  themeChange: [theme: AppTheme]
 }>()
 
 type TabId = 'overview' | 'fluxo' | 'ativos' | 'conexoes'
+type NotificationTone = 'success' | 'warning' | 'info'
+
+interface NotificationItem {
+  id: string
+  title: string
+  description: string
+  time: string
+  tone: NotificationTone
+  actionLabel: string
+  actionTab: TabId
+}
+
+const NOTIFICATION_STORAGE_PREFIX = 'ifinanca.notifications.read'
+const MAX_AVATAR_BYTES = 3 * 1024 * 1024
 
 const tabs: { id: TabId; label: string }[] = [
   { id: 'overview', label: 'Overview' },
@@ -53,9 +73,15 @@ const tabs: { id: TabId; label: string }[] = [
 
 const activeTab = ref<TabId>('overview')
 const menuOpen = ref(false)
+const notificationsOpen = ref(false)
+const profileMenuOpen = ref(false)
+const avatarInput = ref<HTMLInputElement | null>(null)
+const avatarMessage = ref('')
+const avatarError = ref('')
 const isConnecting = ref(false)
 const connectMessage = ref('')
 const connectedItemId = ref('')
+const readNotificationIds = ref<string[]>(readStoredNotificationIds(props.profile.id))
 
 const firstName = computed(() => props.profile.name.trim().split(' ')[0] || 'Usuario')
 const activeTabLabel = computed(() => tabs.find((tab) => tab.id === activeTab.value)?.label ?? 'Overview')
@@ -63,12 +89,195 @@ const totalBalance = computed(() => bankConnections.reduce((total, bank) => tota
 const incomeTotal = computed(() => transactions.filter((item) => item.amount > 0).reduce((total, item) => total + item.amount, 0))
 const outcomeTotal = computed(() => Math.abs(transactions.filter((item) => item.amount < 0).reduce((total, item) => total + item.amount, 0)))
 const assetTotal = computed(() => assets.reduce((total, asset) => total + asset.amount, 0))
+const notifications = computed<NotificationItem[]>(() => {
+  const bankAlerts = bankConnections
+    .filter((bank) => bank.newTransactions > 0 || bank.status === 'Pendente')
+    .map((bank) => ({
+      id: `bank-${bank.id}-${bank.newTransactions || bank.status}`,
+      title: bank.status === 'Pendente' ? `${bank.shortName} precisa sincronizar` : 'Novos lancamentos importados',
+      description:
+        bank.status === 'Pendente'
+          ? `Revise a conexao do ${bank.name} para concluir a importacao.`
+          : `${bank.name} tem ${bank.newTransactions.toLocaleString('pt-BR')} lancamentos disponiveis.`,
+      time: bank.status === 'Pendente' ? 'Agora' : 'Ha 12 min',
+      tone: (bank.status === 'Pendente' ? 'warning' : 'success') as NotificationTone,
+      actionLabel: 'Ver conexao',
+      actionTab: 'conexoes' as TabId,
+    }))
+
+  const plannedTransactions = transactions
+    .filter((transaction) => transaction.status === 'Previsto')
+    .map((transaction) => ({
+      id: `transaction-${transaction.id}`,
+      title: 'Lancamento previsto',
+      description: `${transaction.title} em ${transaction.bank}: ${formatCurrency(transaction.amount)}.`,
+      time: transaction.date,
+      tone: 'info' as NotificationTone,
+      actionLabel: 'Ver fluxo',
+      actionTab: 'fluxo' as TabId,
+    }))
+
+  return [...bankAlerts, ...plannedTransactions]
+})
+const unreadNotificationCount = computed(
+  () => notifications.value.filter((notification) => !readNotificationIds.value.includes(notification.id)).length,
+)
 
 function tabButtonClass(tab: TabId) {
   return [
     'btn btn-sm border-0 px-4 font-bold',
     activeTab.value === tab ? 'bg-white text-[#08090d]' : 'bg-transparent text-zinc-400 hover:bg-white/10 hover:text-white',
   ]
+}
+
+function readStoredNotificationIds(profileId: string) {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  const stored = window.localStorage.getItem(`${NOTIFICATION_STORAGE_PREFIX}.${profileId}`)
+
+  try {
+    return stored ? (JSON.parse(stored) as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+function persistReadNotificationIds(nextIds: string[]) {
+  readNotificationIds.value = nextIds
+
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(`${NOTIFICATION_STORAGE_PREFIX}.${props.profile.id}`, JSON.stringify(nextIds))
+  }
+}
+
+function isNotificationRead(notificationId: string) {
+  return readNotificationIds.value.includes(notificationId)
+}
+
+function markNotificationRead(notificationId: string) {
+  if (isNotificationRead(notificationId)) {
+    return
+  }
+
+  persistReadNotificationIds([...readNotificationIds.value, notificationId])
+}
+
+function markAllNotificationsRead() {
+  persistReadNotificationIds(notifications.value.map((notification) => notification.id))
+}
+
+function openNotificationAction(notification: NotificationItem) {
+  markNotificationRead(notification.id)
+  activeTab.value = notification.actionTab
+  notificationsOpen.value = false
+}
+
+function notificationToneClass(tone: NotificationTone) {
+  return {
+    success: 'bg-[#17c964]',
+    warning: 'bg-[#f59e0b]',
+    info: 'bg-[#3b82f6]',
+  }[tone]
+}
+
+function toggleNotifications() {
+  notificationsOpen.value = !notificationsOpen.value
+  profileMenuOpen.value = false
+}
+
+function toggleProfileMenu() {
+  profileMenuOpen.value = !profileMenuOpen.value
+  notificationsOpen.value = false
+  avatarError.value = ''
+  avatarMessage.value = ''
+}
+
+function setTheme(nextTheme: AppTheme) {
+  emit('themeChange', nextTheme)
+}
+
+function openAvatarPicker() {
+  avatarInput.value?.click()
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(new Error('Nao foi possivel ler a imagem.'))
+    reader.readAsDataURL(file)
+  })
+}
+
+function loadImage(source: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('Nao foi possivel carregar a imagem.'))
+    image.src = source
+  })
+}
+
+async function createAvatarDataUrl(file: File) {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Escolha um arquivo de imagem.')
+  }
+
+  if (file.size > MAX_AVATAR_BYTES) {
+    throw new Error('Use uma imagem de ate 3 MB.')
+  }
+
+  const source = await readFileAsDataUrl(file)
+  const image = await loadImage(source)
+  const canvas = document.createElement('canvas')
+  const size = Math.min(image.width, image.height)
+  const offsetX = Math.max((image.width - size) / 2, 0)
+  const offsetY = Math.max((image.height - size) / 2, 0)
+  const targetSize = 256
+  const context = canvas.getContext('2d')
+
+  if (!context) {
+    throw new Error('Nao foi possivel preparar a imagem.')
+  }
+
+  canvas.width = targetSize
+  canvas.height = targetSize
+  context.drawImage(image, offsetX, offsetY, size, size, 0, 0, targetSize, targetSize)
+
+  return canvas.toDataURL('image/jpeg', 0.86)
+}
+
+async function handleAvatarSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  avatarError.value = ''
+  avatarMessage.value = ''
+
+  try {
+    const avatarUrl = await createAvatarDataUrl(file)
+    emit('profileUpdated', { ...props.profile, avatarUrl })
+    avatarMessage.value = 'Foto atualizada.'
+    profileMenuOpen.value = false
+  } catch (error) {
+    avatarError.value = error instanceof Error ? error.message : 'Nao foi possivel alterar a foto.'
+  } finally {
+    input.value = ''
+  }
+}
+
+function removeAvatar() {
+  const nextProfile: UserProfile = { ...props.profile }
+  delete nextProfile.avatarUrl
+  emit('profileUpdated', nextProfile)
+  avatarMessage.value = 'Foto removida.'
+  avatarError.value = ''
 }
 
 async function connectAccount() {
@@ -102,11 +311,11 @@ function newLaunchLabel(bank: BankConnection) {
 </script>
 
 <template>
-  <section class="min-h-screen bg-[#06070a] text-white">
-    <header class="sticky top-0 z-40 border-b border-white/10 bg-[#07080d]/95 backdrop-blur">
+  <section class="dashboard-shell min-h-screen" :data-mode="theme">
+    <header class="dashboard-header sticky top-0 z-40 border-b backdrop-blur">
       <div class="mx-auto flex h-[68px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div class="flex items-center gap-3">
-          <span class="flex size-10 items-center justify-center rounded-lg bg-white text-lg font-black text-[#08090d]">
+          <span class="brand-mark flex size-10 items-center justify-center rounded-lg text-lg font-black">
             iF
           </span>
           <span class="text-xl font-black">iFinanca</span>
@@ -125,18 +334,121 @@ function newLaunchLabel(bank: BankConnection) {
         </nav>
 
         <div class="flex items-center gap-2">
-          <button class="tooltip tooltip-bottom btn btn-ghost btn-square btn-sm text-zinc-400" data-tip="Tema claro" type="button">
+          <button
+            :class="['tooltip tooltip-bottom btn btn-ghost btn-square btn-sm', theme === 'light' ? 'text-[#17c964]' : 'text-zinc-400']"
+            data-tip="Tema claro"
+            type="button"
+            @click="setTheme('light')"
+          >
             <Sun :size="18" />
           </button>
-          <button class="tooltip tooltip-bottom btn btn-ghost btn-square btn-sm text-zinc-400" data-tip="Tema escuro" type="button">
+          <button
+            :class="['tooltip tooltip-bottom btn btn-ghost btn-square btn-sm', theme === 'dark' ? 'text-[#17c964]' : 'text-zinc-400']"
+            data-tip="Tema escuro"
+            type="button"
+            @click="setTheme('dark')"
+          >
             <Moon :size="18" />
           </button>
-          <button class="tooltip tooltip-bottom btn btn-ghost btn-square btn-sm text-zinc-400" data-tip="Notificacoes" type="button">
-            <Bell :size="18" />
-          </button>
-          <div class="avatar placeholder">
-            <div class="w-9 rounded-full bg-[#17c964] text-sm font-black text-[#06130a]">
-              <span>{{ firstName.slice(0, 1).toUpperCase() }}</span>
+
+          <div class="relative">
+            <button
+              class="tooltip tooltip-bottom btn btn-ghost btn-square btn-sm text-zinc-400"
+              data-tip="Notificacoes"
+              type="button"
+              @click="toggleNotifications"
+            >
+              <Bell :size="18" />
+              <span
+                v-if="unreadNotificationCount"
+                class="keep-white absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-[#f52a55] text-[10px] font-black text-white"
+              >
+                {{ unreadNotificationCount }}
+              </span>
+            </button>
+
+            <div
+              v-if="notificationsOpen"
+              class="dashboard-popover absolute right-0 top-11 z-50 w-[min(92vw,380px)] rounded-lg border p-3 shadow-2xl"
+            >
+              <div class="flex items-center justify-between gap-3 px-1 pb-2">
+                <div>
+                  <p class="text-sm font-black">Notificacoes</p>
+                  <p class="text-xs text-zinc-500">{{ unreadNotificationCount }} pendentes</p>
+                </div>
+                <button class="btn btn-ghost btn-square btn-xs text-zinc-400" type="button" @click="markAllNotificationsRead">
+                  <CheckCheck :size="16" />
+                </button>
+              </div>
+
+              <div class="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                <button
+                  v-for="notification in notifications"
+                  :key="notification.id"
+                  class="dashboard-notification w-full rounded-lg p-3 text-left"
+                  type="button"
+                  @click="openNotificationAction(notification)"
+                >
+                  <div class="flex gap-3">
+                    <span class="mt-1 size-2.5 rounded-full" :class="notificationToneClass(notification.tone)"></span>
+                    <span class="min-w-0 flex-1">
+                      <span class="flex items-start justify-between gap-3">
+                        <span class="font-black">{{ notification.title }}</span>
+                        <span class="shrink-0 text-xs text-zinc-500">{{ notification.time }}</span>
+                      </span>
+                      <span class="mt-1 block text-sm leading-5 text-zinc-400">{{ notification.description }}</span>
+                      <span class="mt-2 block text-xs font-black text-[#17c964]">{{ notification.actionLabel }}</span>
+                    </span>
+                    <span v-if="!isNotificationRead(notification.id)" class="mt-1 size-2 rounded-full bg-[#f52a55]"></span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="relative">
+            <button
+              class="avatar-button avatar placeholder"
+              type="button"
+              aria-label="Abrir menu do perfil"
+              @click="toggleProfileMenu"
+            >
+              <div class="w-9 overflow-hidden rounded-full bg-[#17c964] text-sm font-black text-[#06130a]">
+                <img v-if="profile.avatarUrl" class="h-full w-full object-cover" :src="profile.avatarUrl" alt="" />
+                <span v-else>{{ firstName.slice(0, 1).toUpperCase() }}</span>
+              </div>
+            </button>
+
+            <input ref="avatarInput" class="hidden" accept="image/*" type="file" @change="handleAvatarSelected" />
+
+            <div
+              v-if="profileMenuOpen"
+              class="dashboard-popover absolute right-0 top-11 z-50 w-[min(92vw,300px)] rounded-lg border p-4 shadow-2xl"
+            >
+              <div class="flex items-center gap-3">
+                <div class="grid size-12 overflow-hidden rounded-full bg-[#17c964] text-base font-black text-[#06130a]">
+                  <img v-if="profile.avatarUrl" class="h-full w-full object-cover" :src="profile.avatarUrl" alt="" />
+                  <span v-else class="grid place-items-center">{{ firstName.slice(0, 1).toUpperCase() }}</span>
+                </div>
+                <div class="min-w-0">
+                  <p class="truncate font-black">{{ profile.name }}</p>
+                  <p class="truncate text-sm text-zinc-500">{{ profile.email }}</p>
+                </div>
+              </div>
+
+              <div class="mt-4 grid gap-2">
+                <button class="btn btn-sm justify-start border-0 bg-[#17c964] text-[#06130a] hover:bg-[#13b45a]" type="button" @click="openAvatarPicker">
+                  <Camera :size="16" />
+                  Alterar foto
+                </button>
+                <button class="btn btn-sm justify-start border-white/10 bg-transparent text-zinc-300 hover:bg-white/10" type="button" @click="removeAvatar">
+                  <Trash2 :size="16" />
+                  Remover foto
+                </button>
+              </div>
+
+              <p v-if="avatarMessage" class="mt-3 text-sm font-semibold text-[#17c964]">{{ avatarMessage }}</p>
+              <p v-if="avatarError" class="mt-3 text-sm font-semibold text-[#ff6b7f]">{{ avatarError }}</p>
             </div>
           </div>
           <button class="tooltip tooltip-bottom btn btn-ghost btn-square btn-sm text-zinc-400" data-tip="Sair" type="button" @click="emit('logout')">
@@ -166,7 +478,7 @@ function newLaunchLabel(bank: BankConnection) {
       <div class="grid gap-8 xl:grid-cols-[250px_1fr]">
         <aside class="hidden xl:block">
           <div class="sticky top-24 space-y-3">
-            <button class="btn w-full justify-start border-0 bg-[#f52a55] text-white hover:bg-[#e1264f]" type="button" @click="connectAccount">
+            <button class="keep-white btn w-full justify-start border-0 bg-[#f52a55] text-white hover:bg-[#e1264f]" type="button" @click="connectAccount">
               <Link2 :size="18" />
               Conectar conta
             </button>
@@ -192,7 +504,7 @@ function newLaunchLabel(bank: BankConnection) {
               </p>
             </div>
 
-            <button class="btn border-0 bg-[#f52a55] text-white hover:bg-[#e1264f] xl:hidden" :disabled="isConnecting" type="button" @click="connectAccount">
+            <button class="keep-white btn border-0 bg-[#f52a55] text-white hover:bg-[#e1264f] xl:hidden" :disabled="isConnecting" type="button" @click="connectAccount">
               <span v-if="isConnecting" class="loading loading-spinner loading-sm"></span>
               <Link2 v-else :size="18" />
               Conectar conta
@@ -353,7 +665,7 @@ function newLaunchLabel(bank: BankConnection) {
             <article v-for="bank in bankConnections" :key="bank.id" class="rounded-lg border border-white/10 bg-[#101318] p-5">
               <div class="flex items-center justify-between gap-4">
                 <div class="flex min-w-0 items-center gap-4">
-                  <span class="grid size-12 shrink-0 place-items-center rounded-full text-sm font-black text-white" :style="{ background: bank.color }">
+                  <span class="keep-white grid size-12 shrink-0 place-items-center rounded-full text-sm font-black text-white" :style="{ background: bank.color }">
                     {{ bank.logoText }}
                   </span>
                   <div class="min-w-0">

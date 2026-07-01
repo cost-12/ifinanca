@@ -11,7 +11,10 @@ export interface UserProfile {
   goal: AccessGoal
   monthlyIncome: number
   createdAt: string
+  avatarUrl?: string
 }
+
+export type AppTheme = 'dark' | 'light'
 
 export interface BankConnection {
   id: string

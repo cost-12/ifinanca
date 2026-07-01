@@ -51,3 +51,108 @@ select {
 .dock button {
   min-height: 4.25rem;
 }
+
+.ifinanca-app {
+  background: var(--dash-bg, #06070a);
+  color: var(--dash-text, #fff);
+}
+
+.dashboard-shell {
+  --dash-bg: #06070a;
+  --dash-header: rgb(7 8 13 / 0.95);
+  --dash-card: #101318;
+  --dash-soft: #0b0d12;
+  --dash-popover: #101318;
+  --dash-border: rgb(255 255 255 / 0.1);
+  --dash-text: #ffffff;
+  --dash-muted: #a1a1aa;
+  --dash-faint: #71717a;
+  --dash-brand-bg: #ffffff;
+  --dash-brand-text: #08090d;
+  background: var(--dash-bg);
+  color: var(--dash-text);
+  color-scheme: dark;
+}
+
+.dashboard-shell[data-mode="light"] {
+  --dash-bg: #f4f7f4;
+  --dash-header: rgb(255 255 255 / 0.94);
+  --dash-card: #ffffff;
+  --dash-soft: #eef3ee;
+  --dash-popover: #ffffff;
+  --dash-border: rgb(22 45 31 / 0.12);
+  --dash-text: #151915;
+  --dash-muted: #627064;
+  --dash-faint: #7f8b81;
+  --dash-brand-bg: #111827;
+  --dash-brand-text: #ffffff;
+  color-scheme: light;
+}
+
+.dashboard-header {
+  border-color: var(--dash-border);
+  background: var(--dash-header);
+}
+
+.brand-mark {
+  background: var(--dash-brand-bg);
+  color: var(--dash-brand-text);
+}
+
+.dashboard-popover {
+  border-color: var(--dash-border);
+  background: var(--dash-popover);
+  color: var(--dash-text);
+}
+
+.dashboard-notification {
+  background: var(--dash-soft);
+}
+
+.dashboard-notification:hover {
+  background: color-mix(in srgb, var(--dash-soft) 86%, #17c964);
+}
+
+.dashboard-shell .bg-\[\#101318\] {
+  background-color: var(--dash-card) !important;
+}
+
+.dashboard-shell .bg-\[\#0b0d12\] {
+  background-color: var(--dash-soft) !important;
+}
+
+.dashboard-shell .bg-\[\#07080d\] {
+  background-color: var(--dash-header) !important;
+}
+
+.dashboard-shell .border-white\/10 {
+  border-color: var(--dash-border) !important;
+}
+
+.dashboard-shell .text-white:not(.keep-white) {
+  color: var(--dash-text) !important;
+}
+
+.dashboard-shell .text-zinc-300,
+.dashboard-shell .text-zinc-400 {
+  color: var(--dash-muted) !important;
+}
+
+.dashboard-shell .text-zinc-500 {
+  color: var(--dash-faint) !important;
+}
+
+.dashboard-shell .keep-white,
+.dashboard-shell .keep-white * {
+  color: #fff !important;
+}
+
+.dashboard-shell .table :where(th, td) {
+  color: inherit;
+}
+
+.avatar-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
