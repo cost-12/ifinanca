@@ -39,6 +39,24 @@ Response:
 }
 ```
 
+## Function incluida no projeto
+
+Este repositorio ja inclui `functions/index.js` com o endpoint `createPluggyConnectToken`.
+
+Configure os secrets antes do deploy:
+
+```sh
+firebase functions:secrets:set PLUGGY_CLIENT_ID
+firebase functions:secrets:set PLUGGY_CLIENT_SECRET
+firebase deploy --only functions
+```
+
+A URL esperada no `.env.local` e:
+
+```sh
+VITE_PLUGGY_CONNECT_TOKEN_URL=https://southamerica-east1-pluggy-firebase.cloudfunctions.net/createPluggyConnectToken
+```
+
 ## Exemplo de Function
 
 ```ts

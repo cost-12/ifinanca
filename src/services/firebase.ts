@@ -1,5 +1,4 @@
 import type { FirebaseApp } from 'firebase/app'
-import type { Auth } from 'firebase/auth'
 import type { Firestore } from 'firebase/firestore/lite'
 import type { UserProfile } from '@/types/finance'
 
@@ -13,16 +12,13 @@ const firebaseConfig = {
 }
 
 let app: FirebaseApp | null = null
-let auth: Auth | null = null
 let db: Firestore | null = null
 let servicePromise: Promise<{
   app: FirebaseApp
-  auth: Auth
   db: Firestore
   addDoc: typeof import('firebase/firestore/lite').addDoc
   collection: typeof import('firebase/firestore/lite').collection
   serverTimestamp: typeof import('firebase/firestore/lite').serverTimestamp
-  signInAnonymously: typeof import('firebase/auth').signInAnonymously
 }> | null = null
 
 export const isFirebaseConfigured = Boolean(
@@ -37,23 +33,19 @@ async function getFirebaseServices() {
   if (!servicePromise) {
     servicePromise = Promise.all([
       import('firebase/app'),
-      import('firebase/auth'),
       import('firebase/firestore/lite'),
-    ]).then(([appModule, authModule, firestoreModule]) => {
+    ]).then(([appModule, firestoreModule]) => {
       if (!app) {
         app = appModule.initializeApp(firebaseConfig)
-        auth = authModule.getAuth(app)
         db = firestoreModule.getFirestore(app)
       }
 
       return {
         app: app as FirebaseApp,
-        auth: auth as Auth,
         db: db as Firestore,
         addDoc: firestoreModule.addDoc,
         collection: firestoreModule.collection,
         serverTimestamp: firestoreModule.serverTimestamp,
-        signInAnonymously: authModule.signInAnonymously,
       }
     })
   }
@@ -77,12 +69,6 @@ export async function saveLead(profile: UserProfile) {
   const services = await getFirebaseServices()
   if (!services) {
     return { mode: 'local' as const }
-  }
-
-  try {
-    await services.signInAnonymously(services.auth)
-  } catch {
-    // Firestore may still accept writes depending on the project rules.
   }
 
   await services.addDoc(services.collection(services.db, 'ifinanca_leads'), {

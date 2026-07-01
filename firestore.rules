@@ -1,0 +1,29 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /ifinanca_leads/{leadId} {
+      allow create: if request.resource.data.keys().hasOnly([
+          'id',
+          'name',
+          'email',
+          'goal',
+          'monthlyIncome',
+          'createdAt',
+          'source'
+        ])
+        && request.resource.data.id is string
+        && request.resource.data.name is string
+        && request.resource.data.email is string
+        && request.resource.data.goal is string
+        && request.resource.data.monthlyIncome is number
+        && request.resource.data.source == 'ifinanca-vue';
+
+      allow read, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
