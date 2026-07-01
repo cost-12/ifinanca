@@ -36,7 +36,7 @@ VITE_PLUGGY_CONNECT_TOKEN_URL=/api/connect-token
 VITE_PLUGGY_INCLUDE_SANDBOX=true
 ```
 
-Para deploy via Cloudflare Pages conectado ao Git, configure essas variaveis como build variables no painel do Pages. Para deploy via CLI local, `.env.production` ja fornece os valores publicos necessarios.
+Para deploy via Cloudflare Pages conectado ao Git, configure essas variaveis como build variables no painel do Pages. Nao versione `.env.production` com valores reais.
 
 ## Deploy automatico via GitHub
 
