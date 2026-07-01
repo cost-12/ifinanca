@@ -4,8 +4,8 @@ Este projeto usa Cloudflare Pages para hospedar o app Vue e Firebase Firestore c
 
 ## Fluxo oficial
 
-1. O usuario cria o cadastro no iFinanca.
-2. O cadastro e gravado no Firestore em `ifinanca_leads`.
+1. O usuario cria conta ou entra com Firebase Authentication Email/Senha.
+2. O perfil autenticado e gravado/lido no Firestore em `users/{uid}`.
 3. O dashboard chama `VITE_PLUGGY_CONNECT_TOKEN_URL`, hoje `/api/connect-token`.
 4. A Pages Function usa `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` server-side.
 5. A Function chama `POST https://api.pluggy.ai/auth`.
@@ -40,10 +40,10 @@ Request:
 
 ```json
 {
-  "clientUserId": "profile-id",
+  "clientUserId": "firebase-auth-uid",
   "userEmail": "usuario@email.com",
   "options": {
-    "clientUserId": "profile-id",
+    "clientUserId": "firebase-auth-uid",
     "avoidDuplicates": true
   }
 }
@@ -83,7 +83,7 @@ Payload esperado, conforme a documentacao da Pluggy:
   "eventId": "d876fd7c-e9bd-4c4c-bd46-cc96c62aac29",
   "itemId": "a5c763cb-0952-457b-9936-630f79c5b016",
   "triggeredBy": "USER",
-  "clientUserId": "profile-id"
+  "clientUserId": "firebase-auth-uid"
 }
 ```
 
@@ -180,6 +180,24 @@ Em Cloudflare Pages, o endpoint deve ser same-origin:
 VITE_PLUGGY_CONNECT_TOKEN_URL=/api/connect-token
 ```
 
+## Firebase Auth e regras
+
+Habilite Email/Senha no Firebase Authentication. O app so exibe o dashboard apos `onAuthStateChanged` confirmar uma sessao ativa.
+
+As regras em `firestore.rules`:
+
+- permitem leitura/criacao/edicao apenas em `users/{uid}` do proprio usuario;
+- validam campos do perfil, objetivo, renda mensal e tamanho do avatar;
+- bloqueiam deletes de perfil;
+- bloqueiam a antiga colecao anonima `ifinanca_leads`;
+- negam todo o restante por padrao.
+
+Publique com:
+
+```sh
+npm run firebase:deploy:rules
+```
+
 ## cURL de referencia
 
 Gerar API key:
@@ -198,7 +216,7 @@ curl --request POST \
   --url https://api.pluggy.ai/connect_token \
   --header "X-API-KEY: $PLUGGY_API_KEY" \
   --header "content-type: application/json" \
-  --data "{\"options\":{\"clientUserId\":\"profile-id\",\"avoidDuplicates\":true}}"
+  --data "{\"options\":{\"clientUserId\":\"firebase-auth-uid\",\"avoidDuplicates\":true}}"
 ```
 
 Resposta oficial da Pluggy:

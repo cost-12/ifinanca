@@ -1,6 +1,45 @@
-import type { FirebaseApp } from 'firebase/app'
-import type { Firestore } from 'firebase/firestore/lite'
-import type { UserProfile } from '@/types/finance'
+import { initializeApp, type FirebaseApp } from 'firebase/app'
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+  type Auth,
+  type Unsubscribe,
+  type User,
+} from 'firebase/auth'
+import {
+  deleteField,
+  doc,
+  getDoc,
+  getFirestore,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  type Firestore,
+} from 'firebase/firestore/lite'
+import type { AccessGoal, UserProfile } from '@/types/finance'
+
+export interface RegisterProfileInput {
+  name: string
+  email: string
+  password: string
+  goal: AccessGoal
+  monthlyIncome: number
+}
+
+export interface LoginInput {
+  email: string
+  password: string
+}
+
+type FirestoreProfileData = Partial<UserProfile> & {
+  createdAt?: unknown
+  updatedAt?: unknown
+}
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -11,71 +50,188 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
+const defaultGoal: AccessGoal = 'Organizar fluxo mensal'
+const validGoals = new Set<AccessGoal>([
+  'Organizar fluxo mensal',
+  'Unificar bancos',
+  'Acompanhar investimentos',
+  'Preparar imposto de renda',
+])
+
 let app: FirebaseApp | null = null
+let auth: Auth | null = null
 let db: Firestore | null = null
-let servicePromise: Promise<{
-  app: FirebaseApp
-  db: Firestore
-  addDoc: typeof import('firebase/firestore/lite').addDoc
-  collection: typeof import('firebase/firestore/lite').collection
-  serverTimestamp: typeof import('firebase/firestore/lite').serverTimestamp
-}> | null = null
 
 export const isFirebaseConfigured = Boolean(
   firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId,
 )
 
-async function getFirebaseServices() {
+function getFirebaseServices() {
   if (!isFirebaseConfigured) {
-    return null
+    throw new Error('Firebase nao configurado.')
   }
 
-  if (!servicePromise) {
-    servicePromise = Promise.all([
-      import('firebase/app'),
-      import('firebase/firestore/lite'),
-    ]).then(([appModule, firestoreModule]) => {
-      if (!app) {
-        app = appModule.initializeApp(firebaseConfig)
-        db = firestoreModule.getFirestore(app)
-      }
-
-      return {
-        app: app as FirebaseApp,
-        db: db as Firestore,
-        addDoc: firestoreModule.addDoc,
-        collection: firestoreModule.collection,
-        serverTimestamp: firestoreModule.serverTimestamp,
-      }
-    })
+  if (!app) {
+    app = initializeApp(firebaseConfig)
+    auth = getAuth(app)
+    db = getFirestore(app)
   }
 
-  return servicePromise
+  return {
+    app,
+    auth: auth as Auth,
+    db: db as Firestore,
+  }
 }
 
-function persistLeadLocally(profile: UserProfile) {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  const stored = window.localStorage.getItem('ifinanca.leads')
-  const leads = stored ? (JSON.parse(stored) as UserProfile[]) : []
-  window.localStorage.setItem('ifinanca.leads', JSON.stringify([profile, ...leads].slice(0, 20)))
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase()
 }
 
-export async function saveLead(profile: UserProfile) {
-  persistLeadLocally(profile)
+function normalizeName(name: string) {
+  return name.trim().replace(/\s+/g, ' ')
+}
 
-  const services = await getFirebaseServices()
-  if (!services) {
-    return { mode: 'local' as const }
+function dateToIso(value: unknown) {
+  if (typeof value === 'string') {
+    return value
   }
 
-  await services.addDoc(services.collection(services.db, 'ifinanca_leads'), {
+  if (value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
+    return value.toDate().toISOString()
+  }
+
+  return new Date().toISOString()
+}
+
+function resolveGoal(goal: unknown): AccessGoal {
+  return typeof goal === 'string' && validGoals.has(goal as AccessGoal) ? (goal as AccessGoal) : defaultGoal
+}
+
+function profileFromUser(user: User, data: FirestoreProfileData = {}): UserProfile {
+  return {
+    id: user.uid,
+    name: normalizeName(data.name || user.displayName || 'Usuario iFinanca'),
+    email: normalizeEmail(data.email || user.email || ''),
+    goal: resolveGoal(data.goal),
+    monthlyIncome: typeof data.monthlyIncome === 'number' ? data.monthlyIncome : 0,
+    createdAt: dateToIso(data.createdAt),
+    avatarUrl: typeof data.avatarUrl === 'string' ? data.avatarUrl : undefined,
+  }
+}
+
+async function writeInitialProfile(user: User, input?: Partial<RegisterProfileInput>) {
+  const { db } = getFirebaseServices()
+  const profile: UserProfile = {
+    id: user.uid,
+    name: normalizeName(input?.name || user.displayName || 'Usuario iFinanca'),
+    email: normalizeEmail(input?.email || user.email || ''),
+    goal: input?.goal || defaultGoal,
+    monthlyIncome: Number(input?.monthlyIncome || 0),
+    createdAt: new Date().toISOString(),
+  }
+
+  await setDoc(doc(db, 'users', user.uid), {
     ...profile,
-    createdAt: services.serverTimestamp(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
     source: 'ifinanca-vue',
   })
 
-  return { mode: 'firebase' as const }
+  return profile
+}
+
+export async function getCurrentUserProfile(user: User) {
+  const { db } = getFirebaseServices()
+  const profileRef = doc(db, 'users', user.uid)
+  const snapshot = await getDoc(profileRef)
+
+  if (!snapshot.exists()) {
+    return writeInitialProfile(user)
+  }
+
+  return profileFromUser(user, snapshot.data() as FirestoreProfileData)
+}
+
+export function observeAuthState(onChange: (user: User | null) => void): Unsubscribe {
+  if (!isFirebaseConfigured) {
+    queueMicrotask(() => onChange(null))
+    return () => undefined
+  }
+
+  const { auth } = getFirebaseServices()
+  return onAuthStateChanged(auth, onChange)
+}
+
+export async function registerWithEmailProfile(input: RegisterProfileInput) {
+  const { auth } = getFirebaseServices()
+  const email = normalizeEmail(input.email)
+  const name = normalizeName(input.name)
+  const credential = await createUserWithEmailAndPassword(auth, email, input.password)
+
+  await updateProfile(credential.user, { displayName: name })
+
+  return writeInitialProfile(credential.user, {
+    ...input,
+    name,
+    email,
+  })
+}
+
+export async function loginWithEmailProfile(input: LoginInput) {
+  const { auth } = getFirebaseServices()
+  const credential = await signInWithEmailAndPassword(auth, normalizeEmail(input.email), input.password)
+  return getCurrentUserProfile(credential.user)
+}
+
+export async function logoutUser() {
+  const { auth } = getFirebaseServices()
+  await signOut(auth)
+}
+
+export async function sendLoginPasswordReset(email: string) {
+  const { auth } = getFirebaseServices()
+  await sendPasswordResetEmail(auth, normalizeEmail(email))
+}
+
+export async function updateUserProfileDocument(profile: UserProfile) {
+  const { auth, db } = getFirebaseServices()
+
+  if (!auth.currentUser || auth.currentUser.uid !== profile.id) {
+    throw new Error('Usuario nao autenticado.')
+  }
+
+  const nextName = normalizeName(profile.name)
+
+  if (auth.currentUser.displayName !== nextName) {
+    await updateProfile(auth.currentUser, { displayName: nextName })
+  }
+
+  await updateDoc(doc(db, 'users', profile.id), {
+    name: nextName,
+    email: normalizeEmail(profile.email),
+    goal: profile.goal,
+    monthlyIncome: Number(profile.monthlyIncome),
+    avatarUrl: profile.avatarUrl || deleteField(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export function getFirebaseAuthErrorMessage(error: unknown) {
+  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
+
+  const messages: Record<string, string> = {
+    'auth/email-already-in-use': 'Este e-mail ja possui uma conta.',
+    'auth/invalid-credential': 'E-mail ou senha invalidos.',
+    'auth/invalid-email': 'Informe um e-mail valido.',
+    'auth/missing-password': 'Informe sua senha.',
+    'auth/network-request-failed': 'Falha de rede. Verifique sua conexao.',
+    'auth/operation-not-allowed': 'Habilite o provedor Email/Senha no Firebase Authentication.',
+    'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos.',
+    'auth/user-not-found': 'Conta nao encontrada.',
+    'auth/weak-password': 'Use uma senha com pelo menos 6 caracteres.',
+    'auth/wrong-password': 'E-mail ou senha invalidos.',
+  }
+
+  return messages[code] || 'Nao foi possivel concluir a autenticacao agora.'
 }

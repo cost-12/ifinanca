@@ -2,24 +2,95 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /ifinanca_leads/{leadId} {
-      allow create: if request.resource.data.keys().hasOnly([
-          'id',
-          'name',
-          'email',
-          'goal',
-          'monthlyIncome',
-          'createdAt',
-          'source'
-        ])
-        && request.resource.data.id is string
-        && request.resource.data.name is string
-        && request.resource.data.email is string
-        && request.resource.data.goal is string
-        && request.resource.data.monthlyIncome is number
-        && request.resource.data.source == 'ifinanca-vue';
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-      allow read, update, delete: if false;
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function profileKeys() {
+      return [
+        'id',
+        'name',
+        'email',
+        'goal',
+        'monthlyIncome',
+        'avatarUrl',
+        'createdAt',
+        'updatedAt',
+        'source'
+      ];
+    }
+
+    function requiredProfileKeys() {
+      return [
+        'id',
+        'name',
+        'email',
+        'goal',
+        'monthlyIncome',
+        'createdAt',
+        'updatedAt',
+        'source'
+      ];
+    }
+
+    function isValidGoal(goal) {
+      return goal in [
+        'Organizar fluxo mensal',
+        'Unificar bancos',
+        'Acompanhar investimentos',
+        'Preparar imposto de renda'
+      ];
+    }
+
+    function isValidAvatar() {
+      return !request.resource.data.keys().hasAny(['avatarUrl'])
+        || (
+          request.resource.data.avatarUrl is string
+          && request.resource.data.avatarUrl.size() < 400000
+        );
+    }
+
+    function isValidProfileData(userId) {
+      return request.resource.data.keys().hasOnly(profileKeys())
+        && request.resource.data.keys().hasAll(requiredProfileKeys())
+        && request.resource.data.id == userId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.goal is string
+        && isValidGoal(request.resource.data.goal)
+        && request.resource.data.monthlyIncome is number
+        && request.resource.data.monthlyIncome >= 0
+        && request.resource.data.monthlyIncome <= 1000000
+        && request.resource.data.source == 'ifinanca-vue'
+        && isValidAvatar();
+    }
+
+    match /users/{userId} {
+      allow create: if isOwner(userId)
+        && isValidProfileData(userId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow read: if isOwner(userId);
+
+      allow update: if isOwner(userId)
+        && isValidProfileData(userId)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.source == resource.data.source;
+
+      allow delete: if false;
+    }
+
+    match /ifinanca_leads/{leadId} {
+      allow read, write: if false;
     }
 
     match /{document=**} {

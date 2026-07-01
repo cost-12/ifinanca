@@ -5,7 +5,8 @@ Plataforma Vue para gestao financeira pessoal com visual inspirado no Meu Pluggy
 ## Arquitetura
 
 - Frontend: Vue/Vite hospedado no Cloudflare Pages.
-- Banco de dados: Firebase Firestore para salvar leads em `ifinanca_leads`.
+- Autenticacao: Firebase Authentication com provedor Email/Senha.
+- Banco de dados: Firebase Firestore para perfis protegidos em `users/{uid}`.
 - Pluggy: Cloudflare Pages Function em `/api/connect-token`, mantendo credenciais server-side.
 - SPA fallback: `public/_redirects` redireciona rotas para `index.html`.
 
@@ -71,9 +72,17 @@ Para desenvolvimento local com `npm run cloudflare:dev`, copie `.dev.vars.exampl
 
 ## Firebase
 
-O Firestore default do projeto `pluggy-firebase` foi criado e as regras foram publicadas. As regras permitem apenas criacao validada em `ifinanca_leads` e bloqueiam leitura/edicao pelo cliente.
+Habilite o provedor Email/Senha em `Authentication > Sign-in method` no console Firebase.
 
-Para endurecer a seguranca em producao, ative Authentication/App Check e ajuste as regras para exigir `request.auth != null`.
+O Firestore salva perfis em `users/{uid}`. As regras exigem `request.auth.uid == userId`, validam campos permitidos, bloqueiam `ifinanca_leads` e negam qualquer outra colecao por padrao.
+
+Para publicar as regras:
+
+```sh
+npm run firebase:deploy:rules
+```
+
+Para endurecer ainda mais a producao, ative App Check no app Web Firebase e configure enforcement para Firestore.
 
 ## Deploy
 

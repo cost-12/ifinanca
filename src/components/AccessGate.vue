@@ -5,15 +5,27 @@ import {
   CreditCard,
   Landmark,
   Link2,
+  LockKeyhole,
+  Mail,
   ReceiptText,
   ShieldCheck,
   TrendingUp,
 } from '@lucide/vue'
-import { saveLead } from '@/services/firebase'
+import {
+  getFirebaseAuthErrorMessage,
+  isFirebaseConfigured,
+  loginWithEmailProfile,
+  registerWithEmailProfile,
+  sendLoginPasswordReset,
+} from '@/services/firebase'
 import type { AccessGoal, UserProfile } from '@/types/finance'
 
+defineProps<{
+  authMessage?: string
+}>()
+
 const emit = defineEmits<{
-  registered: [profile: UserProfile]
+  authenticated: [profile: UserProfile]
 }>()
 
 const goals: AccessGoal[] = [
@@ -26,22 +38,35 @@ const goals: AccessGoal[] = [
 const form = reactive({
   name: '',
   email: '',
+  password: '',
+  confirmPassword: '',
   goal: 'Organizar fluxo mensal' as AccessGoal,
   monthlyIncome: 8600,
 })
 
+const authMode = ref<'login' | 'register'>('register')
 const isSubmitting = ref(false)
+const isResettingPassword = ref(false)
 const errorMessage = ref('')
+const successMessage = ref('')
 
 const firstName = computed(() => form.name.trim().split(' ')[0] || 'Matheus')
-const canSubmit = computed(() => form.name.trim().length > 1 && /^\S+@\S+\.\S+$/.test(form.email))
-
-function createProfileId() {
-  if (globalThis.crypto && 'randomUUID' in globalThis.crypto) {
-    return globalThis.crypto.randomUUID()
+const isValidEmail = computed(() => /^\S+@\S+\.\S+$/.test(form.email))
+const isRegisterMode = computed(() => authMode.value === 'register')
+const passwordIsValid = computed(() => form.password.length >= 6)
+const passwordMatches = computed(() => !isRegisterMode.value || form.password === form.confirmPassword)
+const canSubmit = computed(() => {
+  if (!isFirebaseConfigured || !isValidEmail.value || !passwordIsValid.value || !passwordMatches.value) {
+    return false
   }
 
-  return `profile-${Date.now()}`
+  return !isRegisterMode.value || form.name.trim().length > 1
+})
+
+function setAuthMode(nextMode: 'login' | 'register') {
+  authMode.value = nextMode
+  errorMessage.value = ''
+  successMessage.value = ''
 }
 
 async function submitAccess() {
@@ -51,23 +76,47 @@ async function submitAccess() {
 
   isSubmitting.value = true
   errorMessage.value = ''
-
-  const profile: UserProfile = {
-    id: createProfileId(),
-    name: form.name.trim(),
-    email: form.email.trim().toLowerCase(),
-    goal: form.goal,
-    monthlyIncome: Number(form.monthlyIncome),
-    createdAt: new Date().toISOString(),
-  }
+  successMessage.value = ''
 
   try {
-    await saveLead(profile)
-    emit('registered', profile)
-  } catch {
-    errorMessage.value = 'Nao foi possivel salvar seu cadastro agora. Tente novamente.'
+    const profile = isRegisterMode.value
+      ? await registerWithEmailProfile({
+          name: form.name,
+          email: form.email,
+          password: form.password,
+          goal: form.goal,
+          monthlyIncome: Number(form.monthlyIncome),
+        })
+      : await loginWithEmailProfile({
+          email: form.email,
+          password: form.password,
+        })
+
+    emit('authenticated', profile)
+  } catch (error) {
+    errorMessage.value = getFirebaseAuthErrorMessage(error)
   } finally {
     isSubmitting.value = false
+  }
+}
+
+async function resetPassword() {
+  if (!isFirebaseConfigured || !isValidEmail.value || isResettingPassword.value) {
+    errorMessage.value = 'Informe seu e-mail para receber o link de redefinicao.'
+    return
+  }
+
+  isResettingPassword.value = true
+  errorMessage.value = ''
+  successMessage.value = ''
+
+  try {
+    await sendLoginPasswordReset(form.email)
+    successMessage.value = 'Enviamos um link de redefinicao para seu e-mail.'
+  } catch (error) {
+    errorMessage.value = getFirebaseAuthErrorMessage(error)
+  } finally {
+    isResettingPassword.value = false
   }
 }
 </script>
@@ -192,31 +241,75 @@ async function submitAccess() {
 
       <form class="rounded-lg border border-white/10 bg-[#101318] p-5 shadow-2xl shadow-black/30 sm:p-6" @submit.prevent="submitAccess">
         <div class="mb-6">
-          <p class="text-sm font-bold uppercase text-[#17c964]">Acesso antecipado</p>
-          <h2 class="mt-2 text-3xl font-black text-white">Crie seu cadastro</h2>
+          <p class="text-sm font-bold uppercase text-[#17c964]">Acesso seguro</p>
+          <h2 class="mt-2 text-3xl font-black text-white">
+            {{ isRegisterMode ? 'Crie sua conta' : 'Entre na sua conta' }}
+          </h2>
           <p class="mt-2 text-sm leading-6 text-zinc-400">
-            A interface principal sera exibida assim que o cadastro for salvo.
+            {{ isRegisterMode ? 'Seu perfil sera protegido por Firebase Auth.' : 'Use seu e-mail e senha cadastrados.' }}
           </p>
         </div>
 
-        <label class="form-control">
+        <div class="join mb-5 grid grid-cols-2">
+          <button
+            :class="['join-item btn btn-sm', isRegisterMode ? 'border-0 bg-[#17c964] text-[#06130a]' : 'border-white/10 bg-[#0b0d12] text-zinc-300']"
+            type="button"
+            @click="setAuthMode('register')"
+          >
+            Criar conta
+          </button>
+          <button
+            :class="['join-item btn btn-sm', !isRegisterMode ? 'border-0 bg-[#17c964] text-[#06130a]' : 'border-white/10 bg-[#0b0d12] text-zinc-300']"
+            type="button"
+            @click="setAuthMode('login')"
+          >
+            Entrar
+          </button>
+        </div>
+
+        <p v-if="!isFirebaseConfigured" class="alert alert-warning mb-4 rounded-lg text-sm">
+          Configure as variaveis Firebase e habilite Email/Senha no Firebase Authentication.
+        </p>
+
+        <p v-if="authMessage" class="alert alert-error mb-4 rounded-lg text-sm">{{ authMessage }}</p>
+
+        <label v-if="isRegisterMode" class="form-control">
           <span class="label-text text-zinc-300">Nome</span>
           <input v-model="form.name" class="input w-full border-white/10 bg-[#0b0d12] text-white" placeholder="Seu nome" type="text" />
         </label>
 
-        <label class="form-control mt-4">
+        <label class="form-control" :class="{ 'mt-4': isRegisterMode }">
           <span class="label-text text-zinc-300">E-mail</span>
-          <input v-model="form.email" class="input w-full border-white/10 bg-[#0b0d12] text-white" placeholder="voce@email.com" type="email" />
+          <label class="input flex w-full items-center gap-2 border-white/10 bg-[#0b0d12] text-white">
+            <Mail class="text-zinc-500" :size="18" />
+            <input v-model="form.email" class="grow bg-transparent" placeholder="voce@email.com" type="email" />
+          </label>
         </label>
 
         <label class="form-control mt-4">
+          <span class="label-text text-zinc-300">Senha</span>
+          <label class="input flex w-full items-center gap-2 border-white/10 bg-[#0b0d12] text-white">
+            <LockKeyhole class="text-zinc-500" :size="18" />
+            <input v-model="form.password" class="grow bg-transparent" placeholder="Minimo 6 caracteres" type="password" />
+          </label>
+        </label>
+
+        <label v-if="isRegisterMode" class="form-control mt-4">
+          <span class="label-text text-zinc-300">Confirmar senha</span>
+          <input v-model="form.confirmPassword" class="input w-full border-white/10 bg-[#0b0d12] text-white" placeholder="Repita sua senha" type="password" />
+          <span v-if="form.confirmPassword && !passwordMatches" class="mt-2 text-sm font-semibold text-[#ff6b7f]">
+            As senhas precisam ser iguais.
+          </span>
+        </label>
+
+        <label v-if="isRegisterMode" class="form-control mt-4">
           <span class="label-text text-zinc-300">Objetivo</span>
           <select v-model="form.goal" class="select w-full border-white/10 bg-[#0b0d12] text-white">
             <option v-for="goal in goals" :key="goal" :value="goal">{{ goal }}</option>
           </select>
         </label>
 
-        <label class="form-control mt-4">
+        <label v-if="isRegisterMode" class="form-control mt-4">
           <span class="label-text text-zinc-300">Receita mensal estimada</span>
           <input v-model.number="form.monthlyIncome" class="range range-success" max="40000" min="1200" step="100" type="range" />
           <span class="mt-2 text-sm font-semibold text-zinc-400">
@@ -224,11 +317,22 @@ async function submitAccess() {
           </span>
         </label>
 
+        <button
+          v-if="!isRegisterMode"
+          class="btn btn-link mt-3 h-auto min-h-0 p-0 text-sm font-bold text-[#17c964]"
+          type="button"
+          :disabled="isResettingPassword"
+          @click="resetPassword"
+        >
+          {{ isResettingPassword ? 'Enviando link...' : 'Esqueci minha senha' }}
+        </button>
+
+        <p v-if="successMessage" class="alert alert-success mt-4 rounded-lg text-sm">{{ successMessage }}</p>
         <p v-if="errorMessage" class="alert alert-error mt-4 rounded-lg text-sm">{{ errorMessage }}</p>
 
         <button class="btn mt-6 w-full border-0 bg-[#f52a55] text-base font-black text-white hover:bg-[#e1264f]" :disabled="!canSubmit || isSubmitting">
           <span v-if="isSubmitting" class="loading loading-spinner loading-sm"></span>
-          <span>{{ isSubmitting ? 'Salvando' : 'Entrar na plataforma' }}</span>
+          <span>{{ isSubmitting ? 'Validando' : isRegisterMode ? 'Criar conta segura' : 'Entrar com Firebase' }}</span>
           <ArrowRight :size="18" />
         </button>
       </form>
