@@ -17,6 +17,8 @@ cp .env.example .env.local
 npm run dev
 ```
 
+Use Node 22.18.0 ou superior compativel. O arquivo `.nvmrc` fixa 22.18.0 para o build remoto do Cloudflare Pages.
+
 O `.env.local` local ja esta apontado para o app Web Firebase `iFinanca` do projeto `pluggy-firebase`. Mantenha esse arquivo fora do git.
 
 ## Variaveis do frontend
@@ -34,6 +36,26 @@ VITE_PLUGGY_INCLUDE_SANDBOX=true
 ```
 
 Para deploy via Cloudflare Pages conectado ao Git, configure essas variaveis como build variables no painel do Pages. Para deploy via CLI local, `.env.production` ja fornece os valores publicos necessarios.
+
+## Deploy automatico via GitHub
+
+No projeto `ifinanca` em Cloudflare Pages, use:
+
+```txt
+Framework preset: Vue ou Vite
+Root directory: /
+Build command: npm run build
+Build output directory: dist
+Production branch: main
+```
+
+Em `Settings > Environment variables`, adicione tambem:
+
+```txt
+NODE_VERSION=22.18.0
+```
+
+O erro `Output directory "dist" not found` acontece quando o Pages tenta publicar `dist` sem antes executar o build. O `wrangler.toml` informa a pasta de saida (`pages_build_output_dir = "dist"`), mas o build automatico pelo Git ainda precisa do campo `Build command` configurado no painel.
 
 ## Secrets da Pluggy
 
