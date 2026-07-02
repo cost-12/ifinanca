@@ -53,6 +53,7 @@ Nunca coloque essas chaves em variaveis `VITE_*`.
 ### Authentication
 
 1. Habilite **Email/Senha** e **Google**.
+
 2. Em **Settings > Authorized domains**, inclua:
    - `ifinanca.pages.dev`
    - `localhost`
