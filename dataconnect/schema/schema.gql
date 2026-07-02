@@ -1,0 +1,16 @@
+type User @table(key: ["id"]) {
+  id: String!
+  name: String!
+  email: String!
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type Transaction @table(key: ["id"]) {
+  id: String!
+  userId: String!
+  title: String!
+  amount: Float!
+  currency: String! @default(expr: "\"BRL\"")
+  status: String!
+  createdAt: Timestamp! @default(expr: "request.time")
+}

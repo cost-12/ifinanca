@@ -1,0 +1,7 @@
+specVersion: "v1beta"
+serviceId: "ifinanca"
+location: "us-central1"
+schema:
+  source: "./schema"
+connectorDirs:
+  - "./connectors"

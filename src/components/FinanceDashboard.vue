@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   ArrowRight,
   Bell,
@@ -30,9 +30,10 @@ import {
   bankConnections,
   financeAccounts,
   monthlyFlow,
-  transactions,
+  transactions as mockTransactions,
 } from '@/data/finance'
 import { formatMoney, formatSignedPercent, languageOptions, translate } from '@/i18n'
+import { loadTransactionsForUser, updateTransactionStatusInDataConnect } from '@/services/dataconnect'
 import { openPluggyConnect } from '@/services/pluggy'
 import type { AppLanguage, AppTheme, BankConnection, Transaction, UserProfile } from '@/types/finance'
 
@@ -76,6 +77,11 @@ const isConnecting = ref(false)
 const connectMessage = ref('')
 const connectedItemId = ref('')
 const readNotificationIds = ref<string[]>(readStoredNotificationIds(props.profile.id))
+const dashboardTransactions = ref<Transaction[]>([...mockTransactions])
+const transactionsSource = ref<'mock' | 'dataconnect'>('mock')
+const isLoadingTransactions = ref(false)
+const isUpdatingTransactionStatus = ref<string | null>(null)
+const transactionUpdateFeedback = ref<{ id: string; type: 'success' | 'error'; message: string } | null>(null)
 
 function tr(key: Parameters<typeof translate>[1], variables?: Parameters<typeof translate>[2]) {
   return translate(props.language, key, variables)
@@ -91,8 +97,8 @@ const tabs = computed<{ id: TabId; label: string }[]>(() => [
 const firstName = computed(() => props.profile.name.trim().split(' ')[0] || 'Usuario')
 const activeTabLabel = computed(() => tabs.value.find((tab) => tab.id === activeTab.value)?.label ?? tr('nav.overview'))
 const totalBalance = computed(() => bankConnections.reduce((total, bank) => total + bank.balance, 0))
-const incomeTotal = computed(() => transactions.filter((item) => item.amount > 0).reduce((total, item) => total + item.amount, 0))
-const outcomeTotal = computed(() => Math.abs(transactions.filter((item) => item.amount < 0).reduce((total, item) => total + item.amount, 0)))
+const incomeTotal = computed(() => dashboardTransactions.value.filter((item) => item.amount > 0).reduce((total, item) => total + item.amount, 0))
+const outcomeTotal = computed(() => Math.abs(dashboardTransactions.value.filter((item) => item.amount < 0).reduce((total, item) => total + item.amount, 0)))
 const assetTotal = computed(() => assets.reduce((total, asset) => total + asset.amount, 0))
 const notifications = computed<NotificationItem[]>(() => {
   const bankAlerts = bankConnections
@@ -110,7 +116,7 @@ const notifications = computed<NotificationItem[]>(() => {
       actionTab: 'conexoes' as TabId,
     }))
 
-  const plannedTransactions = transactions
+  const plannedTransactions = dashboardTransactions.value
     .filter((transaction) => transaction.status === 'Previsto')
     .map((transaction) => ({
       id: `transaction-${transaction.id}`,
@@ -131,6 +137,85 @@ const notifications = computed<NotificationItem[]>(() => {
 const unreadNotificationCount = computed(
   () => notifications.value.filter((notification) => !readNotificationIds.value.includes(notification.id)).length,
 )
+
+function mapRemoteTransaction(transaction: { id: string; title: string; amount: number; status: string; createdAt?: string }) {
+  const status = transaction.status === 'Confirmado' ? 'Confirmado' : 'Previsto'
+  const bank = transaction.title.toLowerCase().includes('salario') ? 'Nubank' : transaction.title.toLowerCase().includes('aluguel') ? 'Bradesco' : 'Data Connect'
+  const category = transaction.status === 'Confirmado' ? 'Sincronizado' : 'Previsto'
+
+  return {
+    id: transaction.id,
+    title: transaction.title,
+    bank,
+    category,
+    amount: Number(transaction.amount || 0),
+    date: transaction.createdAt
+      ? new Date(transaction.createdAt).toLocaleDateString(props.language, {
+          day: '2-digit',
+          month: 'short',
+        })
+      : 'Hoje',
+    status,
+  } satisfies Transaction
+}
+
+async function refreshTransactions() {
+  if (!props.profile.id) {
+    dashboardTransactions.value = [...mockTransactions]
+    transactionsSource.value = 'mock'
+    return
+  }
+
+  isLoadingTransactions.value = true
+
+  try {
+    const remoteTransactions = await loadTransactionsForUser(props.profile.id)
+
+    if (remoteTransactions.length) {
+      dashboardTransactions.value = remoteTransactions.map(mapRemoteTransaction)
+      transactionsSource.value = 'dataconnect'
+      return
+    }
+  } catch {
+    // Fallback to mocks when the endpoint is unavailable or returns an error.
+  } finally {
+    isLoadingTransactions.value = false
+  }
+
+  dashboardTransactions.value = [...mockTransactions]
+  transactionsSource.value = 'mock'
+}
+
+async function toggleTransactionStatus(transactionId: string, nextStatus: Transaction['status']) {
+  const target = dashboardTransactions.value.find((item) => item.id === transactionId)
+
+  if (!target || !import.meta.env.VITE_FIREBASE_DATACONNECT_ENDPOINT) {
+    return
+  }
+
+  const previousStatus = target.status
+  isUpdatingTransactionStatus.value = transactionId
+  transactionUpdateFeedback.value = null
+  target.status = nextStatus
+
+  try {
+    await updateTransactionStatusInDataConnect(transactionId, nextStatus)
+    transactionUpdateFeedback.value = {
+      id: transactionId,
+      type: 'success',
+      message: nextStatus === 'Confirmado' ? 'Transacao confirmada no Data Connect.' : 'Status atualizado para previsto.',
+    }
+  } catch {
+    target.status = previousStatus
+    transactionUpdateFeedback.value = {
+      id: transactionId,
+      type: 'error',
+      message: 'Nao foi possivel atualizar o status no Data Connect.',
+    }
+  } finally {
+    isUpdatingTransactionStatus.value = null
+  }
+}
 
 function tabButtonClass(tab: TabId) {
   return [
@@ -339,12 +424,23 @@ function bankStatusLabel(status: BankConnection['status']) {
 function transactionStatusLabel(status: Transaction['status']) {
   return status === 'Confirmado' ? tr('status.confirmed') : tr('status.planned')
 }
+
+onMounted(() => {
+  void refreshTransactions()
+})
+
+watch(
+  () => props.profile.id,
+  () => {
+    void refreshTransactions()
+  },
+)
 </script>
 
 <template>
   <section class="dashboard-shell min-h-screen" :data-mode="theme">
     <header class="dashboard-header sticky top-0 z-40 border-b backdrop-blur">
-      <div class="mx-auto flex h-[68px] max-w-[1480px] items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div class="mx-auto flex h-17 max-w-370 items-center justify-between px-4 sm:px-6 lg:px-8">
         <div class="flex items-center gap-3">
           <span class="brand-mark flex size-10 items-center justify-center rounded-lg text-lg font-black">
             iF
@@ -424,7 +520,7 @@ function transactionStatusLabel(status: Transaction['status']) {
                 </button>
               </div>
 
-              <div class="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+              <div class="max-h-90 space-y-2 overflow-y-auto pr-1">
                 <button
                   v-for="notification in notifications"
                   :key="notification.id"
@@ -529,7 +625,7 @@ function transactionStatusLabel(status: Transaction['status']) {
       </nav>
     </header>
 
-    <div class="mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+    <div class="mx-auto max-w-370 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       <div class="grid gap-8 xl:grid-cols-[260px_1fr] 2xl:grid-cols-[300px_1fr]">
         <aside class="hidden xl:block">
           <div class="sticky top-24 space-y-3">
@@ -682,7 +778,17 @@ function transactionStatusLabel(status: Transaction['status']) {
                     <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.transactions') }}</p>
                     <h2 class="mt-1 text-2xl font-black">{{ tr('dashboard.recentTransactions') }}</h2>
                   </div>
-                  <ReceiptText class="text-[#17c964]" :size="24" />
+                  <div class="flex items-center gap-2">
+                    <span v-if="isLoadingTransactions" class="text-sm font-semibold text-zinc-400">Carregando...</span>
+                    <span v-if="transactionsSource === 'dataconnect'" class="badge border-[#173423] bg-[#102217] text-[#76eaa2]">
+                      Sincronizado com Data Connect
+                    </span>
+                    <ReceiptText class="text-[#17c964]" :size="24" />
+                  </div>
+                </div>
+
+                <div v-if="transactionUpdateFeedback" class="mb-3 rounded-lg border px-3 py-2 text-sm" :class="transactionUpdateFeedback.type === 'success' ? 'border-[#173423] bg-[#102217] text-[#76eaa2]' : 'border-[#3a1f26] bg-[#22141a] text-[#ff8a9b]'">
+                  {{ transactionUpdateFeedback.message }}
                 </div>
 
                 <div class="overflow-x-auto">
@@ -696,14 +802,23 @@ function transactionStatusLabel(status: Transaction['status']) {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="transaction in transactions" :key="transaction.id" class="border-white/10">
+                      <tr v-for="transaction in dashboardTransactions" :key="transaction.id" class="border-white/10">
                         <td>
                           <p class="font-black text-white">{{ transaction.title }}</p>
                           <p class="text-sm text-zinc-500">{{ transaction.category }} - {{ transaction.date }}</p>
                         </td>
                         <td class="text-zinc-300">{{ transaction.bank }}</td>
                         <td>
-                          <span class="badge border-white/10 bg-white/5 text-zinc-300">{{ transactionStatusLabel(transaction.status) }}</span>
+                          <button
+                            v-if="transactionsSource === 'dataconnect'"
+                            class="badge flex items-center gap-2 border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+                            type="button"
+                            @click="toggleTransactionStatus(transaction.id, transaction.status === 'Confirmado' ? 'Previsto' : 'Confirmado')"
+                          >
+                            <span v-if="isUpdatingTransactionStatus === transaction.id" class="loading loading-spinner loading-xs"></span>
+                            <span>{{ transactionStatusLabel(transaction.status) }}</span>
+                          </button>
+                          <span v-else class="badge border-white/10 bg-white/5 text-zinc-300">{{ transactionStatusLabel(transaction.status) }}</span>
                         </td>
                         <td :class="transaction.amount >= 0 ? 'text-[#76eaa2]' : 'text-[#ff6b7f]'" class="text-right font-black">
                           {{ formatMoney(transaction.amount, language) }}
@@ -760,7 +875,7 @@ function transactionStatusLabel(status: Transaction['status']) {
             </div>
 
             <div class="grid gap-3">
-              <div v-for="transaction in transactions" :key="transaction.id" class="flex items-center justify-between rounded-lg bg-[#0b0d12] p-4">
+              <div v-for="transaction in dashboardTransactions" :key="transaction.id" class="flex items-center justify-between rounded-lg bg-[#0b0d12] p-4">
                 <div>
                   <p class="font-black">{{ transaction.title }}</p>
                   <p class="text-sm text-zinc-500">{{ transaction.category }} - {{ transaction.date }}</p>

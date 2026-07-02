@@ -1,5 +1,11 @@
 /// <reference types="vite/client" />
 
+declare module '*.vue' {
+  import type { DefineComponent } from 'vue'
+  const component: DefineComponent<{}, {}, any>
+  export default component
+}
+
 interface ImportMetaEnv {
   readonly VITE_FIREBASE_API_KEY?: string
   readonly VITE_FIREBASE_AUTH_DOMAIN?: string
@@ -8,6 +14,7 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_MESSAGING_SENDER_ID?: string
   readonly VITE_FIREBASE_APP_ID?: string
   readonly VITE_FIREBASE_MEASUREMENT_ID?: string
+  readonly VITE_FIREBASE_DATACONNECT_ENDPOINT?: string
   readonly VITE_PLUGGY_CONNECT_TOKEN_URL?: string
   readonly VITE_PLUGGY_INCLUDE_SANDBOX?: string
 }

@@ -1,0 +1,63 @@
+# Data Connect mutations for users and transactions
+
+mutation CreateUser($id: String!, $name: String!, $email: String!) {
+  user_insert(
+    data: {
+      id: $id
+      name: $name
+      email: $email
+    }
+  ) {
+    id
+    name
+    email
+    createdAt
+  }
+}
+
+mutation UpdateUser($id: String!, $name: String!, $email: String!) {
+  user_update(key: { id: $id }, data: { name: $name, email: $email }) {
+    id
+    name
+    email
+    createdAt
+  }
+}
+
+mutation CreateTransaction(
+  $id: String!
+  $userId: String!
+  $title: String!
+  $amount: Float!
+  $currency: String!
+  $status: String!
+) {
+  transaction_insert(
+    data: {
+      id: $id
+      userId: $userId
+      title: $title
+      amount: $amount
+      currency: $currency
+      status: $status
+    }
+  ) {
+    id
+    title
+    amount
+    currency
+    status
+    createdAt
+  }
+}
+
+mutation UpdateTransactionStatus($id: String!, $status: String!) {
+  transaction_update(key: { id: $id }, data: { status: $status }) {
+    id
+    title
+    amount
+    currency
+    status
+    createdAt
+  }
+}

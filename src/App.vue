@@ -10,6 +10,7 @@ import {
   observeAuthState,
   updateUserProfileDocument,
 } from '@/services/firebase'
+import { syncUserWithDataConnect, updateUserInDataConnect } from '@/services/dataconnect'
 import type { AppLanguage, AppTheme, UserProfile } from '@/types/finance'
 
 const PROFILE_STORAGE_KEY = 'ifinanca.profile'
@@ -61,6 +62,11 @@ async function handleProfileUpdated(nextProfile: UserProfile) {
 
   try {
     await updateUserProfileDocument(nextProfile)
+
+    if (import.meta.env.VITE_FIREBASE_DATACONNECT_ENDPOINT) {
+      await updateUserInDataConnect(nextProfile)
+      await syncUserWithDataConnect(nextProfile)
+    }
   } catch (error) {
     authMessage.value = getFirebaseAuthErrorMessage(error, language.value)
   }
@@ -103,7 +109,12 @@ onMounted(() => {
     }
 
     try {
-      persistProfile(await getCurrentUserProfile(user))
+      const profileFromFirebase = await getCurrentUserProfile(user)
+      persistProfile(profileFromFirebase)
+
+      if (import.meta.env.VITE_FIREBASE_DATACONNECT_ENDPOINT) {
+        await syncUserWithDataConnect(profileFromFirebase)
+      }
     } catch (error) {
       clearProfile()
       authMessage.value = getFirebaseAuthErrorMessage(error, language.value)
