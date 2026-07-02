@@ -17,9 +17,9 @@ Este projeto usa Cloudflare Pages para hospedar o app Vue e Firebase Firestore c
 
 Referencias:
 
-- Create API Key: https://docs.pluggy.ai/reference/auth-create
-- Create Connect Token: https://docs.pluggy.ai/reference/connect-token-create
-- Cloudflare Pages Functions: https://developers.cloudflare.com/pages/functions/
+- Create API Key: [https://docs.pluggy.ai/reference/auth-create]
+- Create Connect Token: [https://docs.pluggy.ai/reference/connect-token-create]
+- Cloudflare Pages Functions: [https://developers.cloudflare.com/pages/functions/]
 
 ## Endpoint
 

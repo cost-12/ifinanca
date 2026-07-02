@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import {
   ArrowRight,
   CreditCard,
@@ -54,6 +54,10 @@ const isGoogleSubmitting = ref(false)
 const isResettingPassword = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+const recaptchaSiteKey = import.meta.env.VITE_FIREBASE_APPCHECK_SITE_KEY?.trim() || ''
+const recaptchaReady = ref(false)
+const recaptchaWidgetId = ref<string | null>(null)
+const recaptchaToken = ref('')
 
 const firstName = computed(() => form.name.trim().split(' ')[0] || 'Matheus')
 const translatedGoals = computed(() =>
@@ -87,6 +91,59 @@ function setAuthMode(nextMode: 'login' | 'register') {
   errorMessage.value = ''
   successMessage.value = ''
 }
+
+function resetRecaptcha() {
+  recaptchaToken.value = ''
+
+  if (typeof window !== 'undefined' && window.grecaptcha && recaptchaWidgetId.value !== null) {
+    window.grecaptcha.reset(recaptchaWidgetId.value)
+  }
+}
+
+function onRecaptchaLoaded() {
+  if (typeof window === 'undefined' || !window.grecaptcha || !recaptchaSiteKey) {
+    return
+  }
+
+  if (recaptchaWidgetId.value === null) {
+    const grecaptcha = window.grecaptcha
+
+    if (!grecaptcha) {
+      return
+    }
+
+    grecaptcha.ready(() => {
+      recaptchaWidgetId.value = grecaptcha.render('ifinanca-recaptcha', {
+        sitekey: recaptchaSiteKey,
+        callback: (token: string) => {
+          recaptchaToken.value = token
+        },
+        'expired-callback': () => {
+          recaptchaToken.value = ''
+        },
+      })
+      recaptchaReady.value = true
+    })
+  }
+}
+
+onMounted(() => {
+  if (!recaptchaSiteKey || typeof window === 'undefined') {
+    return
+  }
+
+  if (window.grecaptcha) {
+    onRecaptchaLoaded()
+    return
+  }
+
+  const script = document.createElement('script')
+  script.src = 'https://www.google.com/recaptcha/api.js?render=explicit'
+  script.async = true
+  script.defer = true
+  script.onload = () => onRecaptchaLoaded()
+  document.head.appendChild(script)
+})
 
 async function submitAccess() {
   if (!canSubmit.value || isSubmitting.value) {
@@ -147,6 +204,22 @@ async function resetPassword() {
   }
 }
 
+async function validateRecaptchaTokenOnServer(token: string) {
+  const response = await fetch('/api/verify-recaptcha', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ token }),
+  })
+
+  const payload = (await response.json().catch(() => ({}))) as { success?: boolean; error?: string }
+
+  if (!response.ok || !payload.success) {
+    throw new Error(payload.error || tr('auth.recaptchaInvalid'))
+  }
+}
+
 async function continueWithGoogle() {
   if (!isFirebaseConfigured || isGoogleSubmitting.value || isSubmitting.value) {
     return
@@ -157,6 +230,14 @@ async function continueWithGoogle() {
   successMessage.value = ''
 
   try {
+    if (recaptchaSiteKey && !recaptchaToken.value) {
+      throw new Error(tr('auth.recaptchaRequired'))
+    }
+
+    if (recaptchaSiteKey) {
+      await validateRecaptchaTokenOnServer(recaptchaToken.value)
+    }
+
     const profile = await signInWithGoogleProfile({
       goal: form.goal,
       monthlyIncome: Number(form.monthlyIncome),
@@ -164,7 +245,8 @@ async function continueWithGoogle() {
 
     emit('authenticated', profile)
   } catch (error) {
-    errorMessage.value = getFirebaseAuthErrorMessage(error, props.language)
+    errorMessage.value = error instanceof Error ? error.message : getFirebaseAuthErrorMessage(error, props.language)
+    resetRecaptcha()
   } finally {
     isGoogleSubmitting.value = false
   }
@@ -173,7 +255,7 @@ async function continueWithGoogle() {
 
 <template>
   <section class="min-h-screen overflow-hidden bg-[#07080d]">
-    <header class="mx-auto flex h-16 w-full max-w-[1480px] items-center justify-between px-4 sm:h-20 sm:px-6 lg:px-8">
+    <header class="mx-auto flex h-16 w-full max-w-370 items-center justify-between px-4 sm:h-20 sm:px-6 lg:px-8">
       <div class="flex items-center gap-3">
         <span class="flex size-10 items-center justify-center rounded-lg bg-[#17c964] text-lg font-black text-[#06130a]">
           iF
@@ -200,7 +282,7 @@ async function continueWithGoogle() {
       </div>
     </header>
 
-    <div class="mx-auto grid min-h-[calc(100vh-64px)] max-w-[1480px] grid-cols-1 gap-8 px-4 pb-10 sm:min-h-[calc(100vh-80px)] sm:px-6 lg:grid-cols-[1fr_minmax(390px,440px)] lg:items-center lg:gap-12 lg:px-8 2xl:grid-cols-[1fr_460px]">
+    <div class="mx-auto grid min-h-[calc(100vh-64px)] max-w-370 grid-cols-1 gap-8 px-4 pb-10 sm:min-h-[calc(100vh-80px)] sm:px-6 lg:grid-cols-[1fr_minmax(390px,440px)] lg:items-center lg:gap-12 lg:px-8 2xl:grid-cols-[1fr_460px]">
       <div class="order-2 grid gap-8 lg:order-1 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center xl:grid-cols-[minmax(0,1fr)_390px]">
         <div class="max-w-2xl">
           <div class="mb-5 inline-flex items-center gap-2 rounded-full border border-[#21312a] bg-[#101a16] px-4 py-2 text-sm font-semibold text-[#76eaa2]">
@@ -217,22 +299,22 @@ async function continueWithGoogle() {
           </p>
 
           <div class="mt-8 grid max-w-xl grid-cols-3 gap-3">
-            <div class="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+            <div class="rounded-lg border border-white/10 bg-white/4 p-4">
               <p class="text-2xl font-black text-white">4</p>
               <p class="text-sm text-zinc-500">{{ tr('hero.banks') }}</p>
             </div>
-            <div class="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+            <div class="rounded-lg border border-white/10 bg-white/4 p-4">
               <p class="text-2xl font-black text-white">2.5k</p>
               <p class="text-sm text-zinc-500">{{ tr('hero.transactions') }}</p>
             </div>
-            <div class="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+            <div class="rounded-lg border border-white/10 bg-white/4 p-4">
               <p class="text-2xl font-black text-white">30m</p>
               <p class="text-sm text-zinc-500">{{ tr('hero.sync') }}</p>
             </div>
           </div>
         </div>
 
-        <div class="mx-auto hidden w-full max-w-[360px] lg:block">
+        <div class="mx-auto hidden w-full max-w-90 lg:block">
           <div class="phone-shell bg-[#101318] p-3 shadow-2xl shadow-black/40">
             <div class="overflow-hidden rounded-[26px] bg-[#f4f6f2] text-[#222]">
               <div class="bg-[#17c964] px-6 pb-16 pt-7 text-white">
@@ -337,7 +419,7 @@ async function continueWithGoogle() {
         <p v-if="authMessage" class="alert alert-error mb-4 rounded-lg text-sm">{{ authMessage }}</p>
 
         <button
-          class="btn mb-5 w-full border-white/10 bg-white text-[#1f2937] hover:bg-zinc-100"
+          class="btn mb-3 w-full border-white/10 bg-white text-[#1f2937] hover:bg-zinc-100"
           type="button"
           :disabled="!isFirebaseConfigured || isGoogleSubmitting || isSubmitting"
           @click="continueWithGoogle"
@@ -346,6 +428,13 @@ async function continueWithGoogle() {
           <span v-else class="grid size-5 place-items-center rounded-full border border-zinc-300 text-sm font-black text-[#4285f4]">G</span>
           <span>{{ isGoogleSubmitting ? tr('common.openingGoogle') : tr('common.google') }}</span>
         </button>
+
+        <div v-if="recaptchaSiteKey" class="mb-4 rounded-xl border border-white/10 bg-[#0b0d12]/80 p-3">
+          <div id="ifinanca-recaptcha" class="flex justify-center"></div>
+        </div>
+        <p v-if="recaptchaSiteKey && !recaptchaReady" class="mb-4 text-center text-xs font-semibold text-zinc-400">
+          {{ tr('auth.recaptchaLoading') }}
+        </p>
 
         <div class="mb-5 flex items-center gap-3 text-xs font-bold uppercase text-zinc-500">
           <span class="h-px flex-1 bg-white/10"></span>

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import AccessGate from '../AccessGate.vue'
 import { loginWithEmailProfile, signInWithGoogleProfile } from '@/services/firebase'
@@ -37,6 +37,15 @@ vi.mock('@/services/firebase', () => ({
 }))
 
 describe('AccessGate', () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs()
+    vi.stubEnv('VITE_FIREBASE_APPCHECK_SITE_KEY', '')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ success: true }),
+    }))
+  })
+
   it('keeps the user on the access screen after registration until email verification', async () => {
     const wrapper = mount(AccessGate, { props: { language: 'pt-BR' } })
 

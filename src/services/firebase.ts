@@ -1,4 +1,5 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app'
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from 'firebase/app-check'
 import {
   createUserWithEmailAndPassword,
   getAuth,
@@ -69,10 +70,27 @@ const validGoals = new Set<AccessGoal>([
 let app: FirebaseApp | null = null
 let auth: Auth | null = null
 let db: Firestore | null = null
+let appCheck: AppCheck | null = null
 
 export const isFirebaseConfigured = Boolean(
   firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId,
 )
+
+export function initializeAppCheckIfConfigured(firebaseApp: FirebaseApp) {
+  const siteKey = import.meta.env.VITE_FIREBASE_APPCHECK_SITE_KEY?.trim()
+
+  if (!siteKey || appCheck) {
+    return null
+  }
+
+  const provider = new ReCaptchaEnterpriseProvider(siteKey)
+  appCheck = initializeAppCheck(firebaseApp, {
+    provider,
+    isTokenAutoRefreshEnabled: true,
+  })
+
+  return appCheck
+}
 
 function getFirebaseServices() {
   if (!isFirebaseConfigured) {
@@ -83,6 +101,7 @@ function getFirebaseServices() {
     app = initializeApp(firebaseConfig)
     auth = getAuth(app)
     db = getFirestore(app)
+    initializeAppCheckIfConfigured(app)
   }
 
   return {
