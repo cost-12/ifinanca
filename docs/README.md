@@ -107,6 +107,7 @@ npm run cloudflare:deploy
 - regras de segurança definidas em firestore.rules
 - App Check com reCAPTCHA Enterprise para fortalecer o fluxo de login do Google
 - a chave de site do reCAPTCHA é usada no frontend via VITE_FIREBASE_APPCHECK_SITE_KEY; a chave secreta deve ficar em uma variável secreta do servidor, como no Cloudflare Pages
+- veja [auth-appcheck.md](auth-appcheck.md) para domínios autorizados, App Check e troubleshooting
 
 ### Pluggy Connect
 

@@ -1,49 +1,73 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import AccessGate from '../AccessGate.vue'
-import { loginWithEmailProfile, signInWithGoogleProfile } from '@/services/firebase'
+import {
+  ensureAppCheckReady,
+  getAppCheckErrorMessage,
+  getAppCheckSiteKey,
+  loginWithEmailProfile,
+  retryAppCheckWarmUp,
+  signInWithGoogleProfile,
+  warmUpAppCheck,
+} from '@/services/firebase'
 
-vi.mock('@/services/firebase', () => ({
-  getFirebaseAuthErrorMessage: vi.fn(() => 'Erro de autenticacao'),
-  isFirebaseConfigured: true,
-  loginWithEmailProfile: vi.fn().mockResolvedValue({
-    id: 'user-2',
-    name: 'Thiago Costa',
-    email: 'thiago@example.com',
-    goal: 'Unificar bancos',
-    monthlyIncome: 9000,
-    createdAt: '2026-07-01T00:00:00.000Z',
-  }),
-  registerWithEmailProfile: vi.fn().mockResolvedValue({
-    profile: {
-      id: 'user-1',
+vi.mock('@/services/firebase', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/firebase')>()
+
+  return {
+    ...actual,
+    getFirebaseAuthErrorMessage: vi.fn(() => 'Erro de autenticacao'),
+    isFirebaseConfigured: true,
+    getAppCheckSiteKey: vi.fn(() => ''),
+    warmUpAppCheck: vi.fn().mockResolvedValue('disabled'),
+    retryAppCheckWarmUp: vi.fn().mockResolvedValue('ready'),
+    ensureAppCheckReady: vi.fn().mockResolvedValue(undefined),
+    getAppCheckErrorMessage: vi.fn(() => 'Falha na verificacao de seguranca'),
+    loginWithEmailProfile: vi.fn().mockResolvedValue({
+      id: 'user-2',
       name: 'Thiago Costa',
       email: 'thiago@example.com',
+      goal: 'Unificar bancos',
+      monthlyIncome: 9000,
+      createdAt: '2026-07-01T00:00:00.000Z',
+    }),
+    registerWithEmailProfile: vi.fn().mockResolvedValue({
+      profile: {
+        id: 'user-1',
+        name: 'Thiago Costa',
+        email: 'thiago@example.com',
+        goal: 'Organizar fluxo mensal',
+        monthlyIncome: 8600,
+        createdAt: '2026-07-01T00:00:00.000Z',
+      },
+      emailVerificationSent: true,
+    }),
+    sendLoginPasswordReset: vi.fn(),
+    signInWithGoogleProfile: vi.fn().mockResolvedValue({
+      id: 'google-user',
+      name: 'Thiago Google',
+      email: 'thiago.google@example.com',
       goal: 'Organizar fluxo mensal',
       monthlyIncome: 8600,
       createdAt: '2026-07-01T00:00:00.000Z',
-    },
-    emailVerificationSent: true,
-  }),
-  sendLoginPasswordReset: vi.fn(),
-  signInWithGoogleProfile: vi.fn().mockResolvedValue({
-    id: 'google-user',
-    name: 'Thiago Google',
-    email: 'thiago.google@example.com',
-    goal: 'Organizar fluxo mensal',
-    monthlyIncome: 8600,
-    createdAt: '2026-07-01T00:00:00.000Z',
-  }),
-}))
+    }),
+  }
+})
 
 describe('AccessGate', () => {
   beforeEach(() => {
-    vi.unstubAllEnvs()
-    vi.stubEnv('VITE_FIREBASE_APPCHECK_SITE_KEY', '')
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({ success: true }),
-    }))
+    vi.clearAllMocks()
+    vi.mocked(getAppCheckSiteKey).mockReturnValue('')
+    vi.mocked(warmUpAppCheck).mockResolvedValue('disabled')
+    vi.mocked(ensureAppCheckReady).mockResolvedValue(undefined)
+    vi.mocked(signInWithGoogleProfile).mockResolvedValue({
+      id: 'google-user',
+      name: 'Thiago Google',
+      email: 'thiago.google@example.com',
+      goal: 'Organizar fluxo mensal',
+      monthlyIncome: 8600,
+      createdAt: '2026-07-01T00:00:00.000Z',
+    })
   })
 
   it('keeps the user on the access screen after registration until email verification', async () => {
@@ -88,28 +112,23 @@ describe('AccessGate', () => {
     })
   })
 
-  it('renders the reCAPTCHA widget through the enterprise API when available', async () => {
-    const enterpriseRender = vi.fn(() => 'widget-id')
-    window.grecaptcha = {
-      ready: (callback: () => void) => callback(),
-      enterprise: { render: enterpriseRender },
-    } as never
-
-    vi.stubEnv('VITE_FIREBASE_APPCHECK_SITE_KEY', 'site-key')
+  it('warms up App Check on mount when configured', async () => {
+    vi.mocked(getAppCheckSiteKey).mockReturnValue('site-key')
+    vi.mocked(warmUpAppCheck).mockResolvedValue('ready')
 
     mount(AccessGate, { props: { language: 'pt-BR' } })
-
     await flushPromises()
 
-    expect(enterpriseRender).toHaveBeenCalledWith('ifinanca-recaptcha', expect.objectContaining({ sitekey: 'site-key' }))
+    expect(warmUpAppCheck).toHaveBeenCalledTimes(1)
   })
 
-  it('emits a profile after Google authentication', async () => {
+  it('emits a profile after Google authentication without manual reCAPTCHA', async () => {
     const wrapper = mount(AccessGate, { props: { language: 'pt-BR' } })
 
     await wrapper.findAll('button').find((button) => button.text().includes('Continuar com Google'))!.trigger('click')
     await flushPromises()
 
+    expect(ensureAppCheckReady).not.toHaveBeenCalled()
     expect(signInWithGoogleProfile).toHaveBeenCalledWith({
       goal: 'Organizar fluxo mensal',
       monthlyIncome: 8600,
@@ -118,5 +137,54 @@ describe('AccessGate', () => {
       name: 'Thiago Google',
       email: 'thiago.google@example.com',
     })
+  })
+
+  it('requires App Check before Google authentication when configured', async () => {
+    vi.mocked(getAppCheckSiteKey).mockReturnValue('site-key')
+    vi.mocked(warmUpAppCheck).mockResolvedValue('ready')
+
+    const wrapper = mount(AccessGate, { props: { language: 'pt-BR' } })
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text().includes('Continuar com Google'))!.trigger('click')
+    await flushPromises()
+
+    expect(ensureAppCheckReady).toHaveBeenCalledTimes(1)
+    expect(signInWithGoogleProfile).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows an App Check error when Google authentication is blocked by security verification', async () => {
+    vi.mocked(getAppCheckSiteKey).mockReturnValue('site-key')
+    vi.mocked(warmUpAppCheck).mockResolvedValue('ready')
+    vi.mocked(ensureAppCheckReady).mockRejectedValue(
+      Object.assign(new Error('timeout'), { code: 'app-check/timeout' }),
+    )
+
+    const wrapper = mount(AccessGate, { props: { language: 'pt-BR' } })
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text().includes('Continuar com Google'))!.trigger('click')
+    await flushPromises()
+
+    expect(getAppCheckErrorMessage).toHaveBeenCalledWith('pt-BR')
+    expect(wrapper.text()).toContain('Falha na verificacao de seguranca')
+    expect(wrapper.emitted('authenticated')).toBeUndefined()
+  })
+
+  it('retries App Check warm-up from the error state', async () => {
+    vi.mocked(getAppCheckSiteKey).mockReturnValue('site-key')
+    vi.mocked(warmUpAppCheck).mockResolvedValue('error')
+    vi.mocked(retryAppCheckWarmUp).mockResolvedValue('ready')
+
+    const wrapper = mount(AccessGate, { props: { language: 'pt-BR' } })
+    await flushPromises()
+
+    const retryButton = wrapper.findAll('button').find((button) => button.text().includes('Tentar novamente'))
+    expect(retryButton).toBeTruthy()
+
+    await retryButton!.trigger('click')
+    await flushPromises()
+
+    expect(retryAppCheckWarmUp).toHaveBeenCalledTimes(1)
   })
 })

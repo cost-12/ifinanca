@@ -16,6 +16,7 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_MEASUREMENT_ID?: string
   readonly VITE_FIREBASE_DATACONNECT_ENDPOINT?: string
   readonly VITE_FIREBASE_APPCHECK_SITE_KEY?: string
+  readonly VITE_FIREBASE_APPCHECK_DEBUG_TOKEN?: string
   readonly VITE_PLUGGY_CONNECT_TOKEN_URL?: string
   readonly VITE_PLUGGY_INCLUDE_SANDBOX?: string
 }

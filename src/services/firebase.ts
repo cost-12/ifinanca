@@ -1,5 +1,10 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app'
-import { initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from 'firebase/app-check'
+import {
+  getToken,
+  initializeAppCheck,
+  ReCaptchaEnterpriseProvider,
+  type AppCheck,
+} from 'firebase/app-check'
 import {
   createUserWithEmailAndPassword,
   getAuth,
@@ -72,24 +77,182 @@ let auth: Auth | null = null
 let db: Firestore | null = null
 let appCheck: AppCheck | null = null
 
+const APP_CHECK_TIMEOUT_MS = 10_000
+const APP_CHECK_RETRY_DELAY_MS = 1_500
+const APP_CHECK_MAX_RETRIES = 2
+
+export type AppCheckStatus = 'disabled' | 'loading' | 'ready' | 'error'
+
+let appCheckStatus: AppCheckStatus = 'disabled'
+let appCheckLastErrorCode = ''
+let warmUpPromise: Promise<AppCheckStatus> | null = null
+
 export const isFirebaseConfigured = Boolean(
   firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId,
 )
 
+function configureAppCheckDebugToken() {
+  if (!import.meta.env.DEV || typeof globalThis === 'undefined') {
+    return
+  }
+
+  const debugToken = import.meta.env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN?.trim()
+  if (!debugToken) {
+    return
+  }
+
+  ;(globalThis as typeof globalThis & { FIREBASE_APPCHECK_DEBUG_TOKEN?: string }).FIREBASE_APPCHECK_DEBUG_TOKEN =
+    debugToken
+}
+
+export function getAppCheckSiteKey() {
+  return import.meta.env.VITE_FIREBASE_APPCHECK_SITE_KEY?.trim() || ''
+}
+
+export function getAppCheckState() {
+  return {
+    status: appCheckStatus,
+    errorCode: appCheckLastErrorCode,
+    isConfigured: Boolean(getAppCheckSiteKey()),
+  }
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function createAppCheckError(code: string, message: string) {
+  return Object.assign(new Error(message), { code })
+}
+
+async function fetchAppCheckToken(timeoutMs: number) {
+  if (!appCheck) {
+    throw createAppCheckError('app-check/not-initialized', 'App Check nao inicializado.')
+  }
+
+  return new Promise<Awaited<ReturnType<typeof getToken>>>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(createAppCheckError('app-check/timeout', 'Tempo esgotado ao obter token do App Check.'))
+    }, timeoutMs)
+
+    getToken(appCheck as AppCheck, false)
+      .then((token) => {
+        window.clearTimeout(timeoutId)
+        resolve(token)
+      })
+      .catch((error) => {
+        window.clearTimeout(timeoutId)
+        reject(error)
+      })
+  })
+}
+
 export function initializeAppCheckIfConfigured(firebaseApp: FirebaseApp) {
-  const siteKey = import.meta.env.VITE_FIREBASE_APPCHECK_SITE_KEY?.trim()
+  const siteKey = getAppCheckSiteKey()
 
   if (!siteKey || appCheck) {
     return null
   }
+
+  configureAppCheckDebugToken()
 
   const provider = new ReCaptchaEnterpriseProvider(siteKey)
   appCheck = initializeAppCheck(firebaseApp, {
     provider,
     isTokenAutoRefreshEnabled: true,
   })
+  appCheckStatus = 'loading'
 
   return appCheck
+}
+
+export async function ensureAppCheckReady(options?: { timeoutMs?: number; retries?: number }) {
+  const siteKey = getAppCheckSiteKey()
+  if (!siteKey) {
+    appCheckStatus = 'disabled'
+    return
+  }
+
+  appCheckStatus = 'loading'
+  getFirebaseServices()
+
+  const timeoutMs = options?.timeoutMs ?? APP_CHECK_TIMEOUT_MS
+  const retries = options?.retries ?? APP_CHECK_MAX_RETRIES
+  let lastError: unknown
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      await fetchAppCheckToken(timeoutMs)
+      appCheckStatus = 'ready'
+      appCheckLastErrorCode = ''
+      return
+    } catch (error) {
+      lastError = error
+      if (attempt < retries) {
+        await wait(APP_CHECK_RETRY_DELAY_MS)
+      }
+    }
+  }
+
+  appCheckStatus = 'error'
+  appCheckLastErrorCode =
+    lastError && typeof lastError === 'object' && 'code' in lastError
+      ? String(lastError.code)
+      : 'app-check/unknown'
+  throw lastError instanceof Error ? lastError : createAppCheckError('app-check/unknown', 'App Check falhou.')
+}
+
+export function warmUpAppCheck(force = false) {
+  if (!getAppCheckSiteKey() || !isFirebaseConfigured) {
+    appCheckStatus = 'disabled'
+    return Promise.resolve('disabled' as const)
+  }
+
+  if (warmUpPromise && !force) {
+    return warmUpPromise
+  }
+
+  appCheckStatus = 'loading'
+  warmUpPromise = ensureAppCheckReady()
+    .then(() => 'ready' as const)
+    .catch(() => 'error' as const)
+
+  return warmUpPromise
+}
+
+export function retryAppCheckWarmUp() {
+  warmUpPromise = null
+  appCheckLastErrorCode = ''
+  return warmUpAppCheck(true)
+}
+
+export function getAppCheckErrorMessage(language: AppLanguage = 'pt-BR') {
+  const messages: Record<AppLanguage, Record<string, string>> = {
+    'pt-BR': {
+      'app-check/not-initialized':
+        'App Check nao inicializou. Confira VITE_FIREBASE_APPCHECK_SITE_KEY e o dominio autorizado no reCAPTCHA Enterprise.',
+      'app-check/timeout':
+        'A verificacao de seguranca demorou demais. Verifique se ifinanca.pages.dev esta registrado no reCAPTCHA Enterprise e tente novamente.',
+      'app-check/unknown': 'Nao foi possivel concluir a verificacao de seguranca. Tente novamente em instantes.',
+    },
+    'en-US': {
+      'app-check/not-initialized':
+        'App Check did not initialize. Check VITE_FIREBASE_APPCHECK_SITE_KEY and the authorized domain in reCAPTCHA Enterprise.',
+      'app-check/timeout':
+        'Security verification took too long. Confirm ifinanca.pages.dev is registered in reCAPTCHA Enterprise and try again.',
+      'app-check/unknown': 'Could not complete security verification. Try again shortly.',
+    },
+    'es-ES': {
+      'app-check/not-initialized':
+        'App Check no se inicializo. Revisa VITE_FIREBASE_APPCHECK_SITE_KEY y el dominio autorizado en reCAPTCHA Enterprise.',
+      'app-check/timeout':
+        'La verificacion de seguridad tardo demasiado. Confirma que ifinanca.pages.dev este registrado en reCAPTCHA Enterprise e intentalo de nuevo.',
+      'app-check/unknown': 'No fue posible completar la verificacion de seguridad. Intentalo de nuevo en unos instantes.',
+    },
+  }
+
+  const code = appCheckLastErrorCode || 'app-check/unknown'
+  return messages[language][code] || messages['pt-BR'][code] || messages[language]['app-check/unknown']
 }
 
 function getFirebaseServices() {

@@ -13,12 +13,18 @@ import {
 } from '@lucide/vue'
 import { formatMoney, goalLabels, languageOptions, translate } from '@/i18n'
 import {
+  ensureAppCheckReady,
+  getAppCheckErrorMessage,
+  getAppCheckSiteKey,
   getFirebaseAuthErrorMessage,
   isFirebaseConfigured,
   loginWithEmailProfile,
   registerWithEmailProfile,
+  retryAppCheckWarmUp,
   sendLoginPasswordReset,
   signInWithGoogleProfile,
+  warmUpAppCheck,
+  type AppCheckStatus,
 } from '@/services/firebase'
 import type { AccessGoal, AppLanguage, UserProfile } from '@/types/finance'
 
@@ -54,10 +60,8 @@ const isGoogleSubmitting = ref(false)
 const isResettingPassword = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
-const recaptchaSiteKey = import.meta.env.VITE_FIREBASE_APPCHECK_SITE_KEY?.trim() || ''
-const recaptchaReady = ref(false)
-const recaptchaWidgetId = ref<string | null>(null)
-const recaptchaToken = ref('')
+const appCheckSiteKey = getAppCheckSiteKey()
+const appCheckStatus = ref<AppCheckStatus>(appCheckSiteKey ? 'loading' : 'disabled')
 
 const firstName = computed(() => form.name.trim().split(' ')[0] || 'Matheus')
 const translatedGoals = computed(() =>
@@ -92,63 +96,26 @@ function setAuthMode(nextMode: 'login' | 'register') {
   successMessage.value = ''
 }
 
-function resetRecaptcha() {
-  recaptchaToken.value = ''
-
-  if (typeof window !== 'undefined' && window.grecaptcha && recaptchaWidgetId.value !== null) {
-    window.grecaptcha.reset?.(recaptchaWidgetId.value)
-  }
-}
-
-function onRecaptchaLoaded() {
-  if (typeof window === 'undefined' || !window.grecaptcha || !recaptchaSiteKey) {
-    return
-  }
-
-  if (recaptchaWidgetId.value === null) {
-    const grecaptcha = window.grecaptcha
-    const enterpriseRenderer = grecaptcha.enterprise?.render
-      ? grecaptcha.enterprise
-      : grecaptcha
-
-    const renderer = enterpriseRenderer?.render
-    const ready = enterpriseRenderer?.ready ?? grecaptcha.ready
-    if (typeof renderer !== 'function' || typeof ready !== 'function') {
-      return
-    }
-
-    ready(() => {
-      recaptchaWidgetId.value = renderer('ifinanca-recaptcha', {
-        sitekey: recaptchaSiteKey,
-        callback: (token: string) => {
-          recaptchaToken.value = token
-        },
-        'expired-callback': () => {
-          recaptchaToken.value = ''
-        },
-      })
-      recaptchaReady.value = true
-    })
-  }
-}
-
 onMounted(() => {
-  if (!recaptchaSiteKey || typeof window === 'undefined') {
+  if (!appCheckSiteKey) {
     return
   }
 
-  if (window.grecaptcha) {
-    onRecaptchaLoaded()
-    return
-  }
-
-  const script = document.createElement('script')
-  script.src = 'https://www.google.com/recaptcha/enterprise.js?render=explicit'
-  script.async = true
-  script.defer = true
-  script.onload = () => onRecaptchaLoaded()
-  document.head.appendChild(script)
+  void warmUpAppCheck().then((status) => {
+    appCheckStatus.value = status
+  })
 })
+
+async function retrySecurityCheck() {
+  errorMessage.value = ''
+  appCheckStatus.value = 'loading'
+  const status = await retryAppCheckWarmUp()
+  appCheckStatus.value = status
+
+  if (status === 'error') {
+    errorMessage.value = getAppCheckErrorMessage(props.language)
+  }
+}
 
 async function submitAccess() {
   if (!canSubmit.value || isSubmitting.value) {
@@ -209,22 +176,6 @@ async function resetPassword() {
   }
 }
 
-async function validateRecaptchaTokenOnServer(token: string) {
-  const response = await fetch('/api/verify-recaptcha', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ token }),
-  })
-
-  const payload = (await response.json().catch(() => ({}))) as { success?: boolean; error?: string }
-
-  if (!response.ok || !payload.success) {
-    throw new Error(payload.error || tr('auth.recaptchaInvalid'))
-  }
-}
-
 async function continueWithGoogle() {
   if (!isFirebaseConfigured || isGoogleSubmitting.value || isSubmitting.value) {
     return
@@ -235,12 +186,9 @@ async function continueWithGoogle() {
   successMessage.value = ''
 
   try {
-    if (recaptchaSiteKey && !recaptchaToken.value) {
-      throw new Error(tr('auth.recaptchaRequired'))
-    }
-
-    if (recaptchaSiteKey) {
-      await validateRecaptchaTokenOnServer(recaptchaToken.value)
+    if (appCheckSiteKey) {
+      await ensureAppCheckReady()
+      appCheckStatus.value = 'ready'
     }
 
     const profile = await signInWithGoogleProfile({
@@ -250,8 +198,14 @@ async function continueWithGoogle() {
 
     emit('authenticated', profile)
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : getFirebaseAuthErrorMessage(error, props.language)
-    resetRecaptcha()
+    const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
+
+    if (appCheckSiteKey && code.startsWith('app-check/')) {
+      appCheckStatus.value = 'error'
+      errorMessage.value = getAppCheckErrorMessage(props.language)
+    } else {
+      errorMessage.value = getFirebaseAuthErrorMessage(error, props.language)
+    }
   } finally {
     isGoogleSubmitting.value = false
   }
@@ -426,7 +380,7 @@ async function continueWithGoogle() {
         <button
           class="btn mb-3 w-full border-white/10 bg-white text-[#1f2937] hover:bg-zinc-100"
           type="button"
-          :disabled="!isFirebaseConfigured || isGoogleSubmitting || isSubmitting"
+          :disabled="!isFirebaseConfigured || isGoogleSubmitting || isSubmitting || appCheckStatus === 'loading'"
           @click="continueWithGoogle"
         >
           <span v-if="isGoogleSubmitting" class="loading loading-spinner loading-sm"></span>
@@ -434,11 +388,18 @@ async function continueWithGoogle() {
           <span>{{ isGoogleSubmitting ? tr('common.openingGoogle') : tr('common.google') }}</span>
         </button>
 
-        <div v-if="recaptchaSiteKey" class="mb-4 rounded-xl border border-white/10 bg-[#0b0d12]/80 p-3">
-          <div id="ifinanca-recaptcha" class="flex justify-center"></div>
-        </div>
-        <p v-if="recaptchaSiteKey && !recaptchaReady" class="mb-4 text-center text-xs font-semibold text-zinc-400">
+        <p v-if="appCheckSiteKey && appCheckStatus === 'loading'" class="mb-4 text-center text-xs font-semibold text-zinc-400">
           {{ tr('auth.recaptchaLoading') }}
+        </p>
+        <p v-if="appCheckSiteKey && appCheckStatus === 'error'" class="alert alert-warning mb-4 rounded-lg text-sm">
+          <span>{{ getAppCheckErrorMessage(language) }}</span>
+          <button
+            class="btn btn-link h-auto min-h-0 p-0 text-sm font-bold text-[#17c964]"
+            type="button"
+            @click="retrySecurityCheck"
+          >
+            {{ tr('auth.appCheckRetry') }}
+          </button>
         </p>
 
         <div class="mb-5 flex items-center gap-3 text-xs font-bold uppercase text-zinc-500">
