@@ -96,7 +96,7 @@ function resetRecaptcha() {
   recaptchaToken.value = ''
 
   if (typeof window !== 'undefined' && window.grecaptcha && recaptchaWidgetId.value !== null) {
-    window.grecaptcha.reset(recaptchaWidgetId.value)
+    window.grecaptcha.reset?.(recaptchaWidgetId.value)
   }
 }
 
@@ -107,13 +107,18 @@ function onRecaptchaLoaded() {
 
   if (recaptchaWidgetId.value === null) {
     const grecaptcha = window.grecaptcha
+    const enterpriseRenderer = grecaptcha.enterprise?.render
+      ? grecaptcha.enterprise
+      : grecaptcha
 
-    if (!grecaptcha) {
+    const renderer = enterpriseRenderer?.render
+    const ready = enterpriseRenderer?.ready ?? grecaptcha.ready
+    if (typeof renderer !== 'function' || typeof ready !== 'function') {
       return
     }
 
-    grecaptcha.ready(() => {
-      recaptchaWidgetId.value = grecaptcha.render('ifinanca-recaptcha', {
+    ready(() => {
+      recaptchaWidgetId.value = renderer('ifinanca-recaptcha', {
         sitekey: recaptchaSiteKey,
         callback: (token: string) => {
           recaptchaToken.value = token
@@ -138,7 +143,7 @@ onMounted(() => {
   }
 
   const script = document.createElement('script')
-  script.src = 'https://www.google.com/recaptcha/api.js?render=explicit'
+  script.src = 'https://www.google.com/recaptcha/enterprise.js?render=explicit'
   script.async = true
   script.defer = true
   script.onload = () => onRecaptchaLoaded()

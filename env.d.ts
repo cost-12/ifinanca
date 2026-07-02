@@ -28,8 +28,12 @@ declare global {
   interface Window {
     grecaptcha?: {
       ready: (cb: () => void) => void
-      render: (container: string | HTMLElement, params: Record<string, unknown>) => string
-      reset: (widgetId?: string) => void
+      render?: (container: string | HTMLElement, params: Record<string, unknown>) => string
+      reset?: (widgetId?: string) => void
+      enterprise?: {
+        ready: (cb: () => void) => void
+        render: (container: string | HTMLElement, params: Record<string, unknown>) => string
+      }
     }
   }
 }

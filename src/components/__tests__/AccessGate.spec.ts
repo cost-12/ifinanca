@@ -88,6 +88,22 @@ describe('AccessGate', () => {
     })
   })
 
+  it('renders the reCAPTCHA widget through the enterprise API when available', async () => {
+    const enterpriseRender = vi.fn(() => 'widget-id')
+    window.grecaptcha = {
+      ready: (callback: () => void) => callback(),
+      enterprise: { render: enterpriseRender },
+    } as never
+
+    vi.stubEnv('VITE_FIREBASE_APPCHECK_SITE_KEY', 'site-key')
+
+    mount(AccessGate, { props: { language: 'pt-BR' } })
+
+    await flushPromises()
+
+    expect(enterpriseRender).toHaveBeenCalledWith('ifinanca-recaptcha', expect.objectContaining({ sitekey: 'site-key' }))
+  })
+
   it('emits a profile after Google authentication', async () => {
     const wrapper = mount(AccessGate, { props: { language: 'pt-BR' } })
 
