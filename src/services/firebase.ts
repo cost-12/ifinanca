@@ -226,7 +226,7 @@ export function retryAppCheckWarmUp() {
   return warmUpAppCheck(true)
 }
 
-export function getAppCheckErrorMessage(language: AppLanguage = 'pt-BR') {
+export function getAppCheckErrorMessage(language: AppLanguage = 'pt-BR'): string {
   const messages: Record<AppLanguage, Record<string, string>> = {
     'pt-BR': {
       'app-check/not-initialized':
@@ -252,7 +252,15 @@ export function getAppCheckErrorMessage(language: AppLanguage = 'pt-BR') {
   }
 
   const code = appCheckLastErrorCode || 'app-check/unknown'
-  return messages[language][code] || messages['pt-BR'][code] || messages[language]['app-check/unknown']
+  const DEFAULT_MESSAGE =
+    'Nao foi possivel concluir a verificacao de seguranca. Tente novamente em instantes.'
+
+  return (
+    messages[language]?.[code] ||
+    messages['pt-BR']?.[code] ||
+    messages[language]?.['app-check/unknown'] ||
+    DEFAULT_MESSAGE
+  )
 }
 
 function getFirebaseServices() {
