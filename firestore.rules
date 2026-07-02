@@ -22,6 +22,7 @@ service cloud.firestore {
         'goal',
         'monthlyIncome',
         'avatarUrl',
+        'pluggyItemIds',
         'createdAt',
         'updatedAt',
         'source'
@@ -58,6 +59,14 @@ service cloud.firestore {
         );
     }
 
+    function isValidPluggyItemIds() {
+      return !request.resource.data.keys().hasAny(['pluggyItemIds'])
+        || (
+          request.resource.data.pluggyItemIds is list
+          && request.resource.data.pluggyItemIds.size() <= 20
+        );
+    }
+
     function isValidProfileData(userId) {
       return request.resource.data.keys().hasOnly(profileKeys())
         && request.resource.data.keys().hasAll(requiredProfileKeys())
@@ -73,9 +82,11 @@ service cloud.firestore {
         && request.resource.data.monthlyIncome >= 0
         && request.resource.data.monthlyIncome <= 1000000
         && request.resource.data.source == 'ifinanca-vue'
-        && isValidAvatar();
+        && isValidAvatar()
+        && isValidPluggyItemIds();
     }
 
+    // ── User profiles ─────────────────────────────────────────────────────────
     match /users/{userId} {
       allow create: if isOwner(userId)
         && isValidProfileData(userId)
@@ -93,6 +104,23 @@ service cloud.firestore {
         && request.resource.data.source == resource.data.source;
 
       allow delete: if false;
+
+      // ── Pluggy item status sub-collection ─────────────────────────────────
+      // Written by the webhook handler (server-side, service account).
+      // Users can read their own item statuses to check sync state.
+      match /pluggyItems/{itemId} {
+        allow read: if isOwner(userId) && hasVerifiedEmail();
+        // Writes come from the server via service account (REST API with access token).
+        // Client-side writes are blocked intentionally.
+        allow write: if false;
+      }
+    }
+
+    // ── Pluggy webhook events log ─────────────────────────────────────────────
+    // Written server-side via service account from the webhook handler.
+    // No client-side access.
+    match /pluggyEvents/{eventId} {
+      allow read, write: if false;
     }
 
     match /ifinanca_leads/{leadId} {

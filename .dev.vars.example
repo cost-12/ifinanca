@@ -1,8 +1,56 @@
+# Cloudflare Pages Functions — Local Dev Secrets
+# Copy this file to .dev.vars and fill in the real values.
+# NEVER commit .dev.vars to version control.
+
+# ─── Pluggy Open Finance ──────────────────────────────────────────────────────
+# Obtain these at: https://dashboard.pluggy.ai → Settings → API Keys
 PLUGGY_CLIENT_ID=replace_with_your_real_pluggy_client_id
 PLUGGY_CLIENT_SECRET=replace_with_your_real_pluggy_client_secret
+
+# A random secret used to authenticate Pluggy webhook calls.
+# Generate with: openssl rand -hex 32
 PLUGGY_WEBHOOK_SECRET=replace_with_a_random_webhook_secret
+
+# Optional: full HTTPS URL that Pluggy will POST webhook events to.
+# In production this is typically https://ifinanca.pages.dev/api/webhooks/pluggy
 PLUGGY_WEBHOOK_URL=
+
+# Optional: OAuth redirect URI registered in Pluggy dashboard.
 PLUGGY_OAUTH_REDIRECT_URI=
+
+# ─── reCAPTCHA v2 (classic siteverify — simple fallback) ──────────────────────
+# Required ONLY when RECAPTCHA_ENTERPRISE_* vars are NOT set.
+# Obtain at: https://www.google.com/recaptcha/admin → Register site (v2)
 RECAPTCHA_SECRET_KEY=replace_with_your_recaptcha_secret_key
-RECAPTCHA_ENTERPRISE_PROJECT_ID=
-RECAPTCHA_ENTERPRISE_API_KEY=
+
+# ─── reCAPTCHA Enterprise (recommended for production) ───────────────────────
+# When all three vars below are set, the function uses the Enterprise Assessment
+# API instead of the classic siteverify endpoint.
+#
+# How to obtain:
+#   1. Go to https://console.cloud.google.com → select project "ascendant-shade-386022"
+#   2. APIs & Services → Enable "reCAPTCHA Enterprise API"
+#   3. reCAPTCHA Enterprise → Create Key → Web → add ifinanca.pages.dev domain
+#   4. Copy the KEY_ID → paste as VITE_FIREBASE_APPCHECK_SITE_KEY in .env.local (frontend)
+#      AND as the siteKey sent in the verify-recaptcha request body.
+#   5. APIs & Services → Credentials → Create API Key (restrict to reCAPTCHA Enterprise API)
+#      → paste below as RECAPTCHA_ENTERPRISE_API_KEY
+#   6. The Project ID is the Google Cloud project ID shown in the console header.
+#
+# Project ID (Google Cloud): ascendant-shade-386022
+RECAPTCHA_ENTERPRISE_PROJECT_ID=ascendant-shade-386022
+
+# API Key with access restricted to the reCAPTCHA Enterprise API only.
+# Create at: https://console.cloud.google.com/apis/credentials
+RECAPTCHA_ENTERPRISE_API_KEY=replace_with_enterprise_api_key
+
+# Minimum acceptable risk score (0.0 = definitely bot, 1.0 = definitely human).
+# Google recommends starting with 0.5 and tuning based on observed traffic.
+# Default: 0.5
+RECAPTCHA_MIN_SCORE=0.5
+
+# ─── Firebase (used by /api/connect-token JWT validation) ────────────────────
+# The Web API Key from Firebase Console → Project Settings → General.
+# Used server-side ONLY to verify Firebase ID tokens via the Google Identity REST API.
+# This is NOT the same as the frontend VITE_FIREBASE_API_KEY (though the value is identical).
+FIREBASE_WEB_API_KEY=replace_with_firebase_web_api_key

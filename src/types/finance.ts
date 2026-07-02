@@ -12,7 +12,12 @@ export interface UserProfile {
   monthlyIncome: number
   createdAt: string
   avatarUrl?: string
+  /** Pluggy item IDs connected by this user via the Pluggy widget. */
+  pluggyItemIds?: string[]
 }
+
+/** Indicates where dashboard data is coming from. */
+export type DataSource = 'mock' | 'pluggy' | 'dataconnect'
 
 export type AppTheme = 'dark' | 'light'
 export type AppLanguage = 'pt-BR' | 'en-US' | 'es-ES'

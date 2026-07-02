@@ -19,6 +19,7 @@ import {
   Plus,
   ReceiptText,
   ShieldCheck,
+  ShieldAlert,
   Sun,
   TrendingUp,
   Trash2,
@@ -27,15 +28,16 @@ import {
 } from '@lucide/vue'
 import {
   assets,
-  bankConnections,
+  bankConnections as mockBankConnections,
   financeAccounts,
   monthlyFlow,
   transactions as mockTransactions,
 } from '@/data/finance'
 import { formatMoney, formatSignedPercent, languageOptions, translate } from '@/i18n'
 import { loadTransactionsForUser, updateTransactionStatusInDataConnect } from '@/services/dataconnect'
-import { openPluggyConnect } from '@/services/pluggy'
-import type { AppLanguage, AppTheme, BankConnection, Transaction, UserProfile } from '@/types/finance'
+import { fetchPluggyItemData, openPluggyConnect } from '@/services/pluggy'
+import type { PluggyAccount, PluggyTransaction } from '@/services/pluggy'
+import type { AppLanguage, AppTheme, BankConnection, DataSource, Transaction, UserProfile } from '@/types/finance'
 
 const props = defineProps<{
   profile: UserProfile
@@ -75,11 +77,14 @@ const avatarMessage = ref('')
 const avatarError = ref('')
 const isConnecting = ref(false)
 const connectMessage = ref('')
+const connectError = ref('')
 const connectedItemId = ref('')
 const readNotificationIds = ref<string[]>(readStoredNotificationIds(props.profile.id))
 const dashboardTransactions = ref<Transaction[]>([...mockTransactions])
-const transactionsSource = ref<'mock' | 'dataconnect'>('mock')
+const dashboardBankConnections = ref<BankConnection[]>([...mockBankConnections])
+const transactionsSource = ref<DataSource>('mock')
 const isLoadingTransactions = ref(false)
+const isLoadingPluggyData = ref(false)
 const isUpdatingTransactionStatus = ref<string | null>(null)
 const transactionUpdateFeedback = ref<{ id: string; type: 'success' | 'error'; message: string } | null>(null)
 
@@ -96,12 +101,12 @@ const tabs = computed<{ id: TabId; label: string }[]>(() => [
 
 const firstName = computed(() => props.profile.name.trim().split(' ')[0] || 'Usuario')
 const activeTabLabel = computed(() => tabs.value.find((tab) => tab.id === activeTab.value)?.label ?? tr('nav.overview'))
-const totalBalance = computed(() => bankConnections.reduce((total, bank) => total + bank.balance, 0))
+const totalBalance = computed(() => dashboardBankConnections.value.reduce((total, bank) => total + bank.balance, 0))
 const incomeTotal = computed(() => dashboardTransactions.value.filter((item) => item.amount > 0).reduce((total, item) => total + item.amount, 0))
 const outcomeTotal = computed(() => Math.abs(dashboardTransactions.value.filter((item) => item.amount < 0).reduce((total, item) => total + item.amount, 0)))
 const assetTotal = computed(() => assets.reduce((total, asset) => total + asset.amount, 0))
 const notifications = computed<NotificationItem[]>(() => {
-  const bankAlerts = bankConnections
+  const bankAlerts = dashboardBankConnections.value
     .filter((bank) => bank.newTransactions > 0 || bank.status === 'Pendente')
     .map((bank) => ({
       id: `bank-${bank.id}-${bank.newTransactions || bank.status}`,
@@ -138,9 +143,49 @@ const unreadNotificationCount = computed(
   () => notifications.value.filter((notification) => !readNotificationIds.value.includes(notification.id)).length,
 )
 
+function mapPluggyAccount(account: PluggyAccount, index: number): BankConnection {
+  // Map Pluggy account types to display colors.
+  const typeColors: Record<string, string> = {
+    BANK: '#17c964',
+    CREDIT: '#f52a55',
+    INVESTMENT: '#3b82f6',
+  }
+
+  return {
+    id: account.id,
+    name: account.name,
+    shortName: account.name.split(' ')[0] || account.name,
+    logoText: account.name.slice(0, 2).toUpperCase(),
+    color: typeColors[account.type] ?? '#7c16dd',
+    balance: account.balance,
+    newTransactions: 0,
+    status: 'Sincronizado',
+    mask: account.number ? `•••• ${account.number.slice(-4)}` : `Conta ${index + 1}`,
+  } satisfies BankConnection
+}
+
+function mapPluggyTransaction(transaction: PluggyTransaction): Transaction {
+  const isCredit = transaction.type === 'CREDIT' || transaction.amount > 0
+  const isPosted = transaction.status === 'POSTED'
+
+  return {
+    id: transaction.id,
+    title: transaction.merchant?.name || transaction.description || 'Transação',
+    bank: 'Pluggy',
+    category: transaction.category || (isCredit ? 'Receita' : 'Despesa'),
+    amount: isCredit ? Math.abs(transaction.amount) : -Math.abs(transaction.amount),
+    date: new Date(transaction.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+    status: isPosted ? 'Confirmado' : 'Previsto',
+  } satisfies Transaction
+}
+
 function mapRemoteTransaction(transaction: { id: string; title: string; amount: number; status: string; createdAt?: string }) {
   const status = transaction.status === 'Confirmado' ? 'Confirmado' : 'Previsto'
-  const bank = transaction.title.toLowerCase().includes('salario') ? 'Nubank' : transaction.title.toLowerCase().includes('aluguel') ? 'Bradesco' : 'Data Connect'
+  const lowerTitle = transaction.title.toLowerCase()
+  let bank = 'Data Connect'
+  if (lowerTitle.includes('salario')) bank = 'Nubank'
+  else if (lowerTitle.includes('aluguel')) bank = 'Bradesco'
+
   const category = transaction.status === 'Confirmado' ? 'Sincronizado' : 'Previsto'
 
   return {
@@ -225,11 +270,11 @@ function tabButtonClass(tab: TabId) {
 }
 
 function readStoredNotificationIds(profileId: string) {
-  if (typeof window === 'undefined') {
+  if (globalThis.window === undefined) {
     return []
   }
 
-  const stored = window.localStorage.getItem(`${NOTIFICATION_STORAGE_PREFIX}.${profileId}`)
+  const stored = globalThis.localStorage.getItem(`${NOTIFICATION_STORAGE_PREFIX}.${profileId}`)
 
   try {
     return stored ? (JSON.parse(stored) as string[]) : []
@@ -241,8 +286,8 @@ function readStoredNotificationIds(profileId: string) {
 function persistReadNotificationIds(nextIds: string[]) {
   readNotificationIds.value = nextIds
 
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(`${NOTIFICATION_STORAGE_PREFIX}.${props.profile.id}`, JSON.stringify(nextIds))
+  if (globalThis.window !== undefined) {
+    globalThis.localStorage.setItem(`${NOTIFICATION_STORAGE_PREFIX}.${props.profile.id}`, JSON.stringify(nextIds))
   }
 }
 
@@ -378,6 +423,30 @@ function removeAvatar() {
   avatarError.value = ''
 }
 
+async function loadPluggyData(itemId: string) {
+  if (!itemId || isLoadingPluggyData.value) return
+
+  isLoadingPluggyData.value = true
+  connectError.value = ''
+
+  try {
+    const data = await fetchPluggyItemData(itemId)
+
+    if (data.accounts.length) {
+      dashboardBankConnections.value = data.accounts.map(mapPluggyAccount)
+      transactionsSource.value = 'pluggy'
+    }
+
+    if (data.transactions.length) {
+      dashboardTransactions.value = data.transactions.map(mapPluggyTransaction)
+    }
+  } catch (error) {
+    connectError.value = error instanceof Error ? error.message : 'Erro ao carregar dados do Pluggy'
+  } finally {
+    isLoadingPluggyData.value = false
+  }
+}
+
 async function connectAccount() {
   if (isConnecting.value) {
     return
@@ -385,6 +454,7 @@ async function connectAccount() {
 
   isConnecting.value = true
   connectMessage.value = ''
+  connectError.value = ''
 
   const result = await openPluggyConnect({
     clientUserId: props.profile.id,
@@ -394,9 +464,27 @@ async function connectAccount() {
     },
   })
 
-  connectedItemId.value = result.itemId
-  connectMessage.value = result.message
   isConnecting.value = false
+
+  if (result.status === 'connected' && result.itemId) {
+    connectedItemId.value = result.itemId
+    connectMessage.value = result.message
+
+    // Persist the new itemId into the user profile so it survives page reload.
+    const updatedItemIds = [...(props.profile.pluggyItemIds ?? [])]
+    if (!updatedItemIds.includes(result.itemId)) {
+      updatedItemIds.push(result.itemId)
+    }
+    emit('profileUpdated', { ...props.profile, pluggyItemIds: updatedItemIds })
+
+    // Load real financial data from Pluggy.
+    await loadPluggyData(result.itemId)
+  } else if (result.status === 'error') {
+    connectError.value = result.message
+  } else {
+    // status === 'closed': user dismissed the widget voluntarily.
+    connectMessage.value = result.message
+  }
 }
 
 function newLaunchLabel(bank: BankConnection) {
@@ -425,8 +513,17 @@ function transactionStatusLabel(status: Transaction['status']) {
   return status === 'Confirmado' ? tr('status.confirmed') : tr('status.planned')
 }
 
-onMounted(() => {
+onMounted(async () => {
   void refreshTransactions()
+
+  // If the user already has connected items from a previous session, load the
+  // most recently connected one to restore real data on page load.
+  const existingItemIds = props.profile.pluggyItemIds ?? []
+  const latestItemId = existingItemIds[existingItemIds.length - 1]
+  if (latestItemId) {
+    connectedItemId.value = latestItemId
+    await loadPluggyData(latestItemId)
+  }
 })
 
 watch(
@@ -556,7 +653,8 @@ watch(
               <span v-else class="grid size-full place-items-center leading-none">{{ firstName.slice(0, 1).toUpperCase() }}</span>
             </button>
 
-            <input ref="avatarInput" class="hidden" accept="image/*" type="file" @change="handleAvatarSelected" />
+            <label for="avatarInput" class="sr-only">Selecionar avatar</label>
+            <input id="avatarInput" ref="avatarInput" class="hidden" accept="image/*" type="file" @change="handleAvatarSelected" />
 
             <div
               v-if="profileMenuOpen"
@@ -779,9 +877,15 @@ watch(
                     <h2 class="mt-1 text-2xl font-black">{{ tr('dashboard.recentTransactions') }}</h2>
                   </div>
                   <div class="flex items-center gap-2">
-                    <span v-if="isLoadingTransactions" class="text-sm font-semibold text-zinc-400">Carregando...</span>
+                    <span v-if="isLoadingTransactions || isLoadingPluggyData" class="text-sm font-semibold text-zinc-400">Carregando...</span>
                     <span v-if="transactionsSource === 'dataconnect'" class="badge border-[#173423] bg-[#102217] text-[#76eaa2]">
                       Sincronizado com Data Connect
+                    </span>
+                    <span v-else-if="transactionsSource === 'pluggy'" class="badge border-[#173423] bg-[#102217] text-[#76eaa2]">
+                      Dados reais · Pluggy
+                    </span>
+                    <span v-else class="badge border-white/10 bg-white/5 text-zinc-500">
+                      Demonstração
                     </span>
                     <ReceiptText class="text-[#17c964]" :size="24" />
                   </div>
@@ -831,26 +935,64 @@ watch(
             </section>
           </div>
 
-          <div v-else-if="activeTab === 'conexoes'" class="grid gap-4 md:grid-cols-2">
-            <article v-for="bank in bankConnections" :key="bank.id" class="rounded-lg border border-white/10 bg-[#101318] p-5">
-              <div class="flex items-center justify-between gap-4">
-                <div class="flex min-w-0 items-center gap-4">
-                  <span class="keep-white grid size-12 shrink-0 place-items-center rounded-full text-sm font-black text-white" :style="{ background: bank.color }">
-                    {{ bank.logoText }}
-                  </span>
-                  <div class="min-w-0">
-                    <h2 class="truncate text-xl font-black">{{ bank.name }}</h2>
-                    <p class="text-sm text-zinc-500">{{ bank.mask }}</p>
-                    <p :class="bank.newTransactions ? 'text-[#7db4ff]' : 'text-zinc-500'" class="mt-2 text-sm font-black">
-                      {{ newLaunchLabel(bank) }}
-                    </p>
-                  </div>
-                </div>
-                <button class="btn btn-square btn-ghost text-[#17c964]" type="button">
-                  <ArrowRight :size="22" />
-                </button>
+          <div v-else-if="activeTab === 'conexoes'" class="space-y-4">
+            <!-- Error banner -->
+            <div v-if="connectError" class="flex items-start gap-3 rounded-lg border border-[#3a1f26] bg-[#22141a] px-4 py-3 text-sm text-[#ff8a9b]">
+              <ShieldAlert :size="18" class="mt-0.5 shrink-0" />
+              <p>{{ connectError }}</p>
+            </div>
+
+            <!-- Real bank connections from Pluggy -->
+            <template v-if="transactionsSource === 'pluggy' && dashboardBankConnections.length">
+              <div class="flex items-center gap-2 text-sm font-bold text-zinc-400">
+                <span class="size-2 rounded-full bg-[#17c964]"></span>
+                Contas conectadas via Pluggy (dados reais)
               </div>
-            </article>
+              <article v-for="bank in dashboardBankConnections" :key="bank.id" class="rounded-lg border border-[#173423] bg-[#101318] p-5">
+                <div class="flex items-center justify-between gap-4">
+                  <div class="flex min-w-0 items-center gap-4">
+                    <span class="keep-white grid size-12 shrink-0 place-items-center rounded-full text-sm font-black text-white" :style="{ background: bank.color }">
+                      {{ bank.logoText }}
+                    </span>
+                    <div class="min-w-0">
+                      <h2 class="truncate text-xl font-black">{{ bank.name }}</h2>
+                      <p class="text-sm text-zinc-500">{{ bank.mask }}</p>
+                      <p class="mt-2 text-sm font-black text-[#76eaa2]">{{ bankStatusLabel(bank.status) }}</p>
+                    </div>
+                  </div>
+                  <button class="btn btn-square btn-ghost text-[#17c964]" type="button">
+                    <ArrowRight :size="22" />
+                  </button>
+                </div>
+              </article>
+            </template>
+
+            <!-- Mock / demo connections -->
+            <template v-else>
+              <div class="flex items-center gap-2 text-sm font-bold text-zinc-400">
+                <span class="size-2 rounded-full bg-zinc-600"></span>
+                Contas de demonstração · Conecte um banco para ver dados reais
+              </div>
+              <article v-for="bank in dashboardBankConnections" :key="bank.id" class="rounded-lg border border-white/10 bg-[#101318] p-5">
+                <div class="flex items-center justify-between gap-4">
+                  <div class="flex min-w-0 items-center gap-4">
+                    <span class="keep-white grid size-12 shrink-0 place-items-center rounded-full text-sm font-black text-white" :style="{ background: bank.color }">
+                      {{ bank.logoText }}
+                    </span>
+                    <div class="min-w-0">
+                      <h2 class="truncate text-xl font-black">{{ bank.name }}</h2>
+                      <p class="text-sm text-zinc-500">{{ bank.mask }}</p>
+                      <p :class="bank.newTransactions ? 'text-[#7db4ff]' : 'text-zinc-500'" class="mt-2 text-sm font-black">
+                        {{ newLaunchLabel(bank) }}
+                      </p>
+                    </div>
+                  </div>
+                  <button class="btn btn-square btn-ghost text-[#17c964]" type="button">
+                    <ArrowRight :size="22" />
+                  </button>
+                </div>
+              </article>
+            </template>
           </div>
 
           <div v-else-if="activeTab === 'ativos'" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

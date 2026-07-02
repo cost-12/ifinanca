@@ -3,6 +3,8 @@ interface PluggyEnv {
   PLUGGY_CLIENT_SECRET?: string
   PLUGGY_WEBHOOK_URL?: string
   PLUGGY_OAUTH_REDIRECT_URI?: string
+  /** Firebase Web API Key — used to verify Firebase ID tokens via the Google Identity REST API. */
+  FIREBASE_WEB_API_KEY?: string
 }
 
 interface ConnectTokenRequest {
@@ -88,9 +90,124 @@ function assertSameOrigin(request: Request) {
   }
 }
 
+/**
+ * Validates a Firebase ID token using the Google Identity Platform REST API.
+ *
+ * We cannot use the Firebase Admin SDK here because Cloudflare Workers run on
+ * the V8 isolate runtime (not Node.js). The REST endpoint is the officially
+ * supported alternative for edge environments.
+ *
+ * Ref: https://firebase.google.com/docs/auth/admin/verify-id-tokens#verify_id_tokens_using_a_third-party_jwt_library
+ * REST: POST https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=<apiKey>
+ *
+ * Returns the decoded user UID on success; throws on failure.
+ */
+async function verifyFirebaseIdToken(idToken: string, apiKey: string): Promise<string> {
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ idToken }),
+    },
+  )
+
+  const body = (await response.json().catch(() => ({}))) as {
+    users?: Array<{ localId?: string; emailVerified?: boolean }>
+    error?: { message?: string }
+  }
+
+  if (!response.ok || !body.users?.length) {
+    const reason = body.error?.message || 'Token inválido'
+    throw Object.assign(new Error(`Firebase token verification failed: ${reason}`), {
+      code: 'auth/invalid-id-token',
+    })
+  }
+
+  const user = body.users[0]
+
+  if (!user.emailVerified) {
+    throw Object.assign(new Error('Firebase user email is not verified'), {
+      code: 'auth/email-not-verified',
+    })
+  }
+
+  const uid = user.localId
+  if (!uid) {
+    throw Object.assign(new Error('Firebase user ID missing in token lookup response'), {
+      code: 'auth/invalid-id-token',
+    })
+  }
+
+  return uid
+}
+
+/**
+ * Extracts the Bearer token from the Authorization header.
+ * Returns null if the header is absent or malformed.
+ */
+function extractBearerToken(request: Request): string | null {
+  const authorization = request.headers.get('authorization')
+  if (!authorization) {
+    return null
+  }
+
+  const parts = authorization.split(' ')
+  if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') {
+    return null
+  }
+
+  return parts[1].trim() || null
+}
+
+async function getPluggyApiKey(clientId: string, clientSecret: string): Promise<string> {
+  const authResponse = await fetch(`${PLUGGY_API_URL}/auth`, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ clientId, clientSecret }),
+  })
+
+  const authPayload = await parsePluggyResponse(authResponse, 'Pluggy authentication failed')
+  if (!authPayload.apiKey) {
+    throw new Error('Pluggy did not return an apiKey')
+  }
+
+  return authPayload.apiKey
+}
+
 export async function onRequestPost({ request, env }: { request: Request; env: PluggyEnv }) {
   try {
     assertSameOrigin(request)
+
+    // ── Firebase ID token verification ────────────────────────────────────────
+    // When FIREBASE_WEB_API_KEY is configured we require a valid Firebase ID
+    // token in the Authorization header. This prevents any unauthenticated
+    // visitor from generating Pluggy connect tokens.
+    if (env.FIREBASE_WEB_API_KEY) {
+      const idToken = extractBearerToken(request)
+
+      if (!idToken) {
+        return jsonResponse(
+          { error: 'Missing Firebase ID token. Include Authorization: Bearer <token> in the request.' },
+          401,
+        )
+      }
+
+      try {
+        await verifyFirebaseIdToken(idToken, env.FIREBASE_WEB_API_KEY)
+      } catch (authError) {
+        return jsonResponse(
+          { error: authError instanceof Error ? authError.message : 'Authentication failed' },
+          401,
+        )
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     const clientId = env.PLUGGY_CLIENT_ID
     const clientSecret = env.PLUGGY_CLIENT_SECRET
@@ -100,24 +217,7 @@ export async function onRequestPost({ request, env }: { request: Request; env: P
     }
 
     const payload = await readJson(request)
-    const authResponse = await fetch(`${PLUGGY_API_URL}/auth`, {
-      method: 'POST',
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        clientId,
-        clientSecret,
-      }),
-    })
-
-    const authPayload = await parsePluggyResponse(authResponse, 'Pluggy authentication failed')
-    const apiKey = authPayload.apiKey
-
-    if (!apiKey) {
-      throw new Error('Pluggy did not return an apiKey')
-    }
+    const apiKey = await getPluggyApiKey(clientId, clientSecret)
 
     const connectTokenResponse = await fetch(`${PLUGGY_API_URL}/connect_token`, {
       method: 'POST',
