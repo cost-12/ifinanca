@@ -52,7 +52,7 @@ Cloudflare Pages Function → Google reCAPTCHA Enterprise REST API
 5. Copie o **Key ID** gerado (formato: `6Lxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`).
 
 > [!NOTE]
-> O Key ID da chave reCAPTCHA já configurada é: `6Lf_UUAtAAAAAOvmLBt2cm71wH2pkHoFWmIE8VpX` (site key atual em `.env.local`). Verifique se ele já está no Console e tem `ifinanca.pages.dev` nos domínios autorizados.
+> O Key ID da chave reCAPTCHA configurada é: `6LeLrkAtAAAAAPU4JKlrF67y5qiVo-jqRPKcQ4Zm` (site key atual em `.env.local`). Verifique se ele já está no Console e tem `ifinanca.pages.dev` nos domínios autorizados.
 
 ### 3. Criar a API Key para a função backend
 
