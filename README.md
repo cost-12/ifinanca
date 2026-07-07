@@ -46,6 +46,7 @@ No projeto `ifinanca` em Cloudflare Pages, use:
 Framework preset: Vue ou Vite
 Root directory: /
 Build command: npm run build
+Deploy command: npm run deploy
 Build output directory: dist
 Production branch: main
 ```
@@ -57,6 +58,8 @@ NODE_VERSION=24.15.0
 ```
 
 O Cloudflare Pages permite escolher a versao do Node via `NODE_VERSION`, `.nvmrc` ou `.node-version`. No build system v3, o campo `engines` do `package.json` nao e usado para detectar automaticamente a versao, entao mantenha `NODE_VERSION=24.15.0` configurado no painel.
+
+Se a tela de build mostrar `Deploy command: npx wrangler deploy`, altere para `npm run deploy` ou `npx wrangler pages deploy dist --project-name ifinanca`. O comando `wrangler deploy` e para Workers e falha neste projeto com `Missing entry-point to Worker script or to assets directory`.
 
 O erro `Output directory "dist" not found` acontece quando o Pages tenta publicar `dist` sem antes executar o build. O `wrangler.toml` informa a pasta de saida (`pages_build_output_dir = "dist"`), mas o build automatico pelo Git ainda precisa do campo `Build command` configurado no painel.
 
@@ -104,6 +107,7 @@ Esse comando executa `npm run build` e publica `dist` no Cloudflare Pages.
 ```sh
 npm run dev
 npm run cloudflare:dev
+npm run deploy
 npm run cloudflare:deploy
 npm run build
 npm run test:unit

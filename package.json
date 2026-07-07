@@ -12,6 +12,7 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "cloudflare:dev": "npm run build && wrangler pages dev dist",
+    "deploy": "wrangler pages deploy dist --project-name ifinanca",
     "cloudflare:deploy": "npm run build && wrangler pages deploy dist --project-name ifinanca",
     "firebase:emulators": "firebase emulators:start --only firestore",
     "firebase:deploy:rules": "firebase deploy --only firestore:rules"
