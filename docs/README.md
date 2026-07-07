@@ -4,6 +4,8 @@
 
 iFinanca é uma aplicação web de gestão financeira pessoal construída com Vue 3, TypeScript, Vite, Firebase e Pluggy Connect. O objetivo do projeto é oferecer uma experiência simples para acompanhar fluxo de caixa, contas, conexões bancárias e metas financeiras.
 
+Para a entrega acadêmica da disciplina, consulte também o [relatório da atividade final](atividade-final.md), que reúne problema, justificativa técnica, requisitos, tecnologias, desafios, manual do usuário, documentação de registro de software e exportação SQL de referência.
+
 ## Recursos principais
 
 - autenticação com Firebase

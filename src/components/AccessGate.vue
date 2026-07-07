@@ -1,17 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   ArrowRight,
-  CreditCard,
-  Landmark,
-  Link2,
   LockKeyhole,
   Mail,
-  ReceiptText,
   ShieldCheck,
-  TrendingUp,
 } from '@lucide/vue'
 import { formatMoney, goalLabels, languageOptions, translate } from '@/i18n'
+import BrandLogo from '@/components/BrandLogo.vue'
+import GoogleLogo from '@/components/GoogleLogo.vue'
+import MaterialIcon from '@/components/MaterialIcon.vue'
 import {
   ensureAppCheckReady,
   getAppCheckErrorMessage,
@@ -30,11 +28,13 @@ import type { AccessGoal, AppLanguage, UserProfile } from '@/types/finance'
 
 const props = defineProps<{
   authMessage?: string
+  initialMode?: 'login' | 'register'
   language: AppLanguage
 }>()
 
 const emit = defineEmits<{
   authenticated: [profile: UserProfile]
+  backHome: []
   languageChange: [language: AppLanguage]
 }>()
 
@@ -54,7 +54,7 @@ const form = reactive({
   monthlyIncome: 8600,
 })
 
-const authMode = ref<'login' | 'register'>('register')
+const authMode = ref<'login' | 'register'>(props.initialMode ?? 'register')
 const isSubmitting = ref(false)
 const isGoogleSubmitting = ref(false)
 const isResettingPassword = ref(false)
@@ -95,6 +95,17 @@ function setAuthMode(nextMode: 'login' | 'register') {
   errorMessage.value = ''
   successMessage.value = ''
 }
+
+watch(
+  () => props.initialMode,
+  (nextMode) => {
+    if (!nextMode || nextMode === authMode.value) {
+      return
+    }
+
+    setAuthMode(nextMode)
+  },
+)
 
 onMounted(() => {
   if (!appCheckSiteKey) {
@@ -215,12 +226,9 @@ async function continueWithGoogle() {
 <template>
   <section class="min-h-screen overflow-hidden bg-[#07080d]">
     <header class="mx-auto flex h-16 w-full max-w-370 items-center justify-between px-4 sm:h-20 sm:px-6 lg:px-8">
-      <div class="flex items-center gap-3">
-        <span class="flex size-10 items-center justify-center rounded-lg bg-[#17c964] text-lg font-black text-[#06130a]">
-          iF
-        </span>
-        <span class="text-xl font-black">iFinanca</span>
-      </div>
+      <button class="text-left text-xl font-black tracking-normal text-white" type="button" @click="emit('backHome')">
+        iFinanca
+      </button>
       <div class="flex items-center gap-2 text-sm text-zinc-400">
         <div class="hidden items-center gap-3 sm:flex">
           <span class="badge border-[#1f2937] bg-[#101318] text-zinc-300">Vue</span>
@@ -244,6 +252,7 @@ async function continueWithGoogle() {
     <div class="mx-auto grid min-h-[calc(100vh-64px)] max-w-370 grid-cols-1 gap-8 px-4 pb-10 sm:min-h-[calc(100vh-80px)] sm:px-6 lg:grid-cols-[1fr_minmax(390px,440px)] lg:items-center lg:gap-12 lg:px-8 2xl:grid-cols-[1fr_460px]">
       <div class="order-2 grid gap-8 lg:order-1 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center xl:grid-cols-[minmax(0,1fr)_390px]">
         <div class="max-w-2xl">
+          <BrandLogo class="mb-6 h-32 w-32 shadow-2xl shadow-black/30" variant="full" />
           <div class="mb-5 inline-flex items-center gap-2 rounded-full border border-[#21312a] bg-[#101a16] px-4 py-2 text-sm font-semibold text-[#76eaa2]">
             <ShieldCheck :size="17" />
             {{ tr('hero.badge') }}
@@ -293,10 +302,10 @@ async function continueWithGoogle() {
                   </div>
                   <div class="flex gap-3">
                     <span class="grid size-10 place-items-center rounded-lg bg-black/15">
-                      <Link2 :size="20" />
+                      <MaterialIcon name="link" :size="20" />
                     </span>
                     <span class="grid size-10 place-items-center rounded-lg bg-black/15">
-                      <ReceiptText :size="20" />
+                      <MaterialIcon name="receipt_long" :size="20" />
                     </span>
                   </div>
                 </div>
@@ -311,10 +320,18 @@ async function continueWithGoogle() {
                     </button>
                   </div>
                   <div class="mt-4 flex -space-x-2">
-                    <span class="grid size-8 place-items-center rounded-full bg-[#7c16dd] text-xs font-black text-white">nu</span>
-                    <span class="grid size-8 place-items-center rounded-full bg-[#ff6b00] text-xs font-black text-white">it</span>
-                    <span class="grid size-8 place-items-center rounded-full bg-[#0879bd] text-xs font-black text-white">cx</span>
-                    <span class="grid size-8 place-items-center rounded-full bg-[#d7193f] text-xs font-black text-white">br</span>
+                    <span class="grid size-8 place-items-center rounded-full bg-[#7c16dd] text-white">
+                      <MaterialIcon fill name="account_balance" :size="17" />
+                    </span>
+                    <span class="grid size-8 place-items-center rounded-full bg-[#ff6b00] text-white">
+                      <MaterialIcon fill name="credit_card" :size="17" />
+                    </span>
+                    <span class="grid size-8 place-items-center rounded-full bg-[#0879bd] text-white">
+                      <MaterialIcon fill name="savings" :size="17" />
+                    </span>
+                    <span class="grid size-8 place-items-center rounded-full bg-[#d7193f] text-white">
+                      <MaterialIcon fill name="monitoring" :size="17" />
+                    </span>
                   </div>
                 </div>
 
@@ -324,15 +341,15 @@ async function continueWithGoogle() {
                   <div class="divider my-3"></div>
                   <div class="space-y-4">
                     <div class="flex items-center justify-between">
-                      <span class="flex items-center gap-3 font-bold"><Landmark :size="20" /> Nubank</span>
+                      <span class="flex items-center gap-3 font-bold"><MaterialIcon fill name="account_balance" :size="20" /> Nubank</span>
                       <span class="font-black text-blue-600">R$ 60.500,56</span>
                     </div>
                     <div class="flex items-center justify-between">
-                      <span class="flex items-center gap-3 font-bold"><CreditCard :size="20" /> Itau</span>
+                      <span class="flex items-center gap-3 font-bold"><MaterialIcon fill name="credit_card" :size="20" /> Itau</span>
                       <span class="font-black text-rose-500">-R$ 126,48</span>
                     </div>
                     <div class="flex items-center justify-between">
-                      <span class="flex items-center gap-3 font-bold"><TrendingUp :size="20" /> Caixa</span>
+                      <span class="flex items-center gap-3 font-bold"><MaterialIcon fill name="trending_up" :size="20" /> Caixa</span>
                       <span class="font-black text-blue-600">R$ 1.250,00</span>
                     </div>
                   </div>
@@ -384,7 +401,7 @@ async function continueWithGoogle() {
           @click="continueWithGoogle"
         >
           <span v-if="isGoogleSubmitting" class="loading loading-spinner loading-sm"></span>
-          <span v-else class="grid size-5 place-items-center rounded-full border border-zinc-300 text-sm font-black text-[#4285f4]">G</span>
+          <GoogleLogo v-else class="size-5" />
           <span>{{ isGoogleSubmitting ? tr('common.openingGoogle') : tr('common.google') }}</span>
         </button>
 

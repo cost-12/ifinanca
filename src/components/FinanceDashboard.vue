@@ -34,6 +34,8 @@ import {
   transactions as mockTransactions,
 } from '@/data/finance'
 import { formatMoney, formatSignedPercent, languageOptions, translate } from '@/i18n'
+import BrandLogo from '@/components/BrandLogo.vue'
+import MaterialIcon from '@/components/MaterialIcon.vue'
 import { loadTransactionsForUser, updateTransactionStatusInDataConnect } from '@/services/dataconnect'
 import { fetchPluggyItemData, openPluggyConnect } from '@/services/pluggy'
 import type { PluggyAccount, PluggyTransaction } from '@/services/pluggy'
@@ -538,11 +540,8 @@ watch(
   <section class="dashboard-shell min-h-screen" :data-mode="theme">
     <header class="dashboard-header sticky top-0 z-40 border-b backdrop-blur">
       <div class="mx-auto flex h-17 max-w-370 items-center justify-between px-4 sm:px-6 lg:px-8">
-        <div class="flex items-center gap-3">
-          <span class="brand-mark flex size-10 items-center justify-center rounded-lg text-lg font-black">
-            iF
-          </span>
-          <span class="hidden text-xl font-black sm:inline">iFinanca</span>
+        <div class="text-xl font-black tracking-normal">
+          iFinanca
         </div>
 
         <nav class="hidden items-center gap-2 md:flex">
@@ -952,7 +951,7 @@ watch(
                 <div class="flex items-center justify-between gap-4">
                   <div class="flex min-w-0 items-center gap-4">
                     <span class="keep-white grid size-12 shrink-0 place-items-center rounded-full text-sm font-black text-white" :style="{ background: bank.color }">
-                      {{ bank.logoText }}
+                      <MaterialIcon fill name="account_balance" :size="24" />
                     </span>
                     <div class="min-w-0">
                       <h2 class="truncate text-xl font-black">{{ bank.name }}</h2>
@@ -977,7 +976,7 @@ watch(
                 <div class="flex items-center justify-between gap-4">
                   <div class="flex min-w-0 items-center gap-4">
                     <span class="keep-white grid size-12 shrink-0 place-items-center rounded-full text-sm font-black text-white" :style="{ background: bank.color }">
-                      {{ bank.logoText }}
+                      <MaterialIcon fill name="account_balance" :size="24" />
                     </span>
                     <div class="min-w-0">
                       <h2 class="truncate text-xl font-black">{{ bank.name }}</h2>

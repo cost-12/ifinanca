@@ -39,6 +39,19 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+.material-icon {
+  direction: ltr;
+  font-family: "Material Symbols Rounded";
+  font-style: normal;
+  font-weight: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+}
+
 #app {
   min-height: 100vh;
 }
