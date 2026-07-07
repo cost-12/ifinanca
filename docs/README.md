@@ -134,3 +134,5 @@ npm run cloudflare:deploy
 - expandir o modelo de transações com categorias e bancos reais
 - adicionar testes end-to-end mais completos para fluxos principais
 - implementar monitoramento e logs de integrações externas
+
+tpf
