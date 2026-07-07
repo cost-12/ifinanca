@@ -39,6 +39,13 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
 .material-icon {
   direction: ltr;
   font-family: "Material Symbols Rounded";

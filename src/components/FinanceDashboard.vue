@@ -746,13 +746,13 @@ watch(
           <div class="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p class="text-sm font-bold uppercase text-[#17c964]">{{ activeTabLabel }}</p>
-              <h1 class="mt-2 text-4xl font-black text-white sm:text-5xl">{{ activeTabLabel }}</h1>
+              <h1 class="mt-2 text-3xl font-black text-white sm:text-5xl">{{ activeTabLabel }}</h1>
               <p class="mt-3 max-w-2xl text-zinc-400">
                 {{ tr('dashboard.greeting', { name: firstName }) }}
               </p>
             </div>
 
-            <button class="keep-white btn border-0 bg-[#f52a55] text-white hover:bg-[#e1264f] xl:hidden" :disabled="isConnecting" type="button" @click="connectAccount">
+            <button class="keep-white btn w-full border-0 bg-[#f52a55] text-white hover:bg-[#e1264f] sm:w-auto xl:hidden" :disabled="isConnecting" type="button" @click="connectAccount">
               <span v-if="isConnecting" class="loading loading-spinner loading-sm"></span>
               <Link2 v-else :size="18" />
               {{ tr('dashboard.connectAccount') }}
@@ -805,7 +805,7 @@ watch(
 
             <section class="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
               <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
-                <div class="mb-5 flex items-center justify-between">
+                <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.monthlyFlow') }}</p>
                     <h2 class="mt-1 text-2xl font-black">{{ tr('dashboard.incomeOutcome') }}</h2>
@@ -875,7 +875,7 @@ watch(
                     <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.transactions') }}</p>
                     <h2 class="mt-1 text-2xl font-black">{{ tr('dashboard.recentTransactions') }}</h2>
                   </div>
-                  <div class="flex items-center gap-2">
+                  <div class="flex flex-wrap items-center gap-2">
                     <span v-if="isLoadingTransactions || isLoadingPluggyData" class="text-sm font-semibold text-zinc-400">Carregando...</span>
                     <span v-if="transactionsSource === 'dataconnect'" class="badge border-[#173423] bg-[#102217] text-[#76eaa2]">
                       Sincronizado com Data Connect
@@ -1016,12 +1016,12 @@ watch(
             </div>
 
             <div class="grid gap-3">
-              <div v-for="transaction in dashboardTransactions" :key="transaction.id" class="flex items-center justify-between rounded-lg bg-[#0b0d12] p-4">
-                <div>
+              <div v-for="transaction in dashboardTransactions" :key="transaction.id" class="flex flex-col gap-2 rounded-lg bg-[#0b0d12] p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
                   <p class="font-black">{{ transaction.title }}</p>
                   <p class="text-sm text-zinc-500">{{ transaction.category }} - {{ transaction.date }}</p>
                 </div>
-                <p :class="transaction.amount >= 0 ? 'text-[#76eaa2]' : 'text-[#ff6b7f]'" class="font-black">
+                <p :class="transaction.amount >= 0 ? 'text-[#76eaa2]' : 'text-[#ff6b7f]'" class="font-black sm:text-right">
                   {{ formatMoney(transaction.amount, language) }}
                 </p>
               </div>

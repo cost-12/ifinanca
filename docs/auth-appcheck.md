@@ -117,3 +117,29 @@ Mantido para compatibilidade, mas nao e mais usado pelo fluxo principal de login
 - [ ] App Check no Firebase Console usa reCAPTCHA Enterprise, nao v3 legado
 - [ ] Nao ha widget manual de reCAPTCHA duplicado no frontend
 - [ ] Secrets do servidor estao em Cloudflare Pages > Secrets, nao em build variables
+
+## Erro 403 no `exchangeRecaptchaEnterpriseToken`
+
+Se a tela mostrar "Nao foi possivel concluir a verificacao de seguranca" em `https://ifinanca.pages.dev/#login` e o console do navegador exibir algo como:
+
+```txt
+403 content-firebaseappcheck.googleapis.com/.../exchangeRecaptchaEnterpriseToken
+@firebase/app-check: AppCheck: 403 error
+@firebase/app-check: Requests throttled due to previous 403 error
+```
+
+o problema nao e o caminho `/#login`. Hashes como `#login` e `#cadastro` nao entram na autorizacao do Firebase. O que precisa estar correto e a combinacao entre:
+
+- dominio/origem: `ifinanca.pages.dev`;
+- app Web Firebase: o app id configurado em `VITE_FIREBASE_APP_ID`;
+- provider App Check desse app Web;
+- site key reCAPTCHA Enterprise configurada em `VITE_FIREBASE_APPCHECK_SITE_KEY`;
+- dominios permitidos na chave reCAPTCHA Enterprise.
+
+Passos recomendados:
+
+1. No Firebase Console, abra **App Check > Apps** e selecione exatamente o app Web usado por `VITE_FIREBASE_APP_ID`.
+2. Confirme que o provider e **reCAPTCHA Enterprise** e que a site key e a mesma publicada como `VITE_FIREBASE_APPCHECK_SITE_KEY` no Cloudflare Pages.
+3. No Google Cloud / reCAPTCHA Enterprise, abra essa mesma chave e adicione `ifinanca.pages.dev` aos dominios permitidos.
+4. No Firebase Authentication, em **Settings > Authorized domains**, confirme `ifinanca.pages.dev`.
+5. Depois de um 403, o SDK pode aplicar throttle por ate 24h no navegador. Apos corrigir a configuracao, teste em uma janela anonima ou limpe os dados do site.

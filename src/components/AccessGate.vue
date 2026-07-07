@@ -252,21 +252,21 @@ async function continueWithGoogle() {
     <div class="mx-auto grid min-h-[calc(100vh-64px)] max-w-370 grid-cols-1 gap-8 px-4 pb-10 sm:min-h-[calc(100vh-80px)] sm:px-6 lg:grid-cols-[1fr_minmax(390px,440px)] lg:items-center lg:gap-12 lg:px-8 2xl:grid-cols-[1fr_460px]">
       <div class="order-2 grid gap-8 lg:order-1 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center xl:grid-cols-[minmax(0,1fr)_390px]">
         <div class="max-w-2xl">
-          <BrandLogo class="mb-6 h-32 w-32 shadow-2xl shadow-black/30" variant="full" />
-          <div class="mb-5 inline-flex items-center gap-2 rounded-full border border-[#21312a] bg-[#101a16] px-4 py-2 text-sm font-semibold text-[#76eaa2]">
+          <BrandLogo class="mb-6 h-28 w-28 shadow-2xl shadow-black/30 sm:h-32 sm:w-32" variant="full" />
+          <div class="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-[#21312a] bg-[#101a16] px-4 py-2 text-sm font-semibold text-[#76eaa2]">
             <ShieldCheck :size="17" />
-            {{ tr('hero.badge') }}
+            <span class="min-w-0">{{ tr('hero.badge') }}</span>
           </div>
 
-          <h1 class="max-w-2xl text-4xl font-black leading-[1.05] text-white sm:text-5xl xl:text-6xl">
+          <h1 class="max-w-2xl text-3xl font-black leading-[1.05] text-white min-[360px]:text-4xl sm:text-5xl xl:text-6xl">
             {{ tr('hero.title') }}
           </h1>
 
-          <p class="mt-6 max-w-xl text-lg leading-8 text-zinc-400">
+          <p class="mt-6 max-w-xl text-base leading-7 text-zinc-400 sm:text-lg sm:leading-8">
             {{ tr('hero.body') }}
           </p>
 
-          <div class="mt-8 grid max-w-xl grid-cols-3 gap-3">
+          <div class="mt-8 grid max-w-xl grid-cols-1 gap-3 sm:grid-cols-3">
             <div class="rounded-lg border border-white/10 bg-white/4 p-4">
               <p class="text-2xl font-black text-white">4</p>
               <p class="text-sm text-zinc-500">{{ tr('hero.banks') }}</p>
@@ -360,7 +360,7 @@ async function continueWithGoogle() {
         </div>
       </div>
 
-      <form class="order-1 rounded-lg border border-white/10 bg-[#101318] p-5 shadow-2xl shadow-black/30 sm:p-6 lg:order-2" @submit.prevent="submitAccess">
+      <form class="order-1 w-full rounded-lg border border-white/10 bg-[#101318] p-5 shadow-2xl shadow-black/30 sm:p-6 lg:order-2" @submit.prevent="submitAccess">
         <div class="mb-6">
           <p class="text-sm font-bold uppercase text-[#17c964]">{{ tr('auth.secureAccess') }}</p>
           <h2 class="mt-2 text-3xl font-black text-white">
@@ -388,11 +388,11 @@ async function continueWithGoogle() {
           </button>
         </div>
 
-        <p v-if="!isFirebaseConfigured" class="alert alert-warning mb-4 rounded-lg text-sm">
+        <p v-if="!isFirebaseConfigured" class="alert alert-warning mb-4 rounded-lg text-sm leading-6">
           {{ tr('auth.firebaseWarning') }}
         </p>
 
-        <p v-if="authMessage" class="alert alert-error mb-4 rounded-lg text-sm">{{ authMessage }}</p>
+        <p v-if="authMessage" class="alert alert-error mb-4 rounded-lg text-sm leading-6">{{ authMessage }}</p>
 
         <button
           class="btn mb-3 w-full border-white/10 bg-white text-[#1f2937] hover:bg-zinc-100"
@@ -408,16 +408,16 @@ async function continueWithGoogle() {
         <p v-if="appCheckSiteKey && appCheckStatus === 'loading'" class="mb-4 text-center text-xs font-semibold text-zinc-400">
           {{ tr('auth.recaptchaLoading') }}
         </p>
-        <p v-if="appCheckSiteKey && appCheckStatus === 'error'" class="alert alert-warning mb-4 rounded-lg text-sm">
-          <span>{{ getAppCheckErrorMessage(language) }}</span>
+        <div v-if="appCheckSiteKey && appCheckStatus === 'error'" class="alert alert-warning mb-4 flex flex-col items-start rounded-lg text-sm leading-6 sm:flex-row sm:items-center">
+          <span class="min-w-0">{{ getAppCheckErrorMessage(language) }}</span>
           <button
-            class="btn btn-link h-auto min-h-0 p-0 text-sm font-bold text-[#17c964]"
+            class="btn btn-link h-auto min-h-0 shrink-0 self-start p-0 text-sm font-bold text-[#17c964] sm:self-auto"
             type="button"
             @click="retrySecurityCheck"
           >
             {{ tr('auth.appCheckRetry') }}
           </button>
-        </p>
+        </div>
 
         <div class="mb-5 flex items-center gap-3 text-xs font-bold uppercase text-zinc-500">
           <span class="h-px flex-1 bg-white/10"></span>

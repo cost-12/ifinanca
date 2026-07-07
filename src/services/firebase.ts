@@ -233,6 +233,12 @@ export function getAppCheckErrorMessage(language: AppLanguage = 'pt-BR'): string
         'App Check nao inicializou. Confira VITE_FIREBASE_APPCHECK_SITE_KEY e o dominio autorizado no reCAPTCHA Enterprise.',
       'app-check/timeout':
         'A verificacao de seguranca demorou demais. Verifique se ifinanca.pages.dev esta registrado no reCAPTCHA Enterprise e tente novamente.',
+      'appCheck/fetch-status-error':
+        'O App Check foi recusado pelo Firebase. Confira se a site key reCAPTCHA Enterprise esta vinculada ao app Web correto e se ifinanca.pages.dev esta autorizado.',
+      'appCheck/initial-throttle':
+        'O App Check foi recusado e entrou em pausa temporaria. Corrija a configuracao no Firebase/reCAPTCHA Enterprise e teste em uma janela anonima.',
+      'appCheck/throttled':
+        'O App Check esta temporariamente bloqueado apos erro 403. Corrija a configuracao e teste em uma janela anonima ou limpe os dados do site.',
       'app-check/unknown': 'Nao foi possivel concluir a verificacao de seguranca. Tente novamente em instantes.',
     },
     'en-US': {
@@ -240,6 +246,12 @@ export function getAppCheckErrorMessage(language: AppLanguage = 'pt-BR'): string
         'App Check did not initialize. Check VITE_FIREBASE_APPCHECK_SITE_KEY and the authorized domain in reCAPTCHA Enterprise.',
       'app-check/timeout':
         'Security verification took too long. Confirm ifinanca.pages.dev is registered in reCAPTCHA Enterprise and try again.',
+      'appCheck/fetch-status-error':
+        'App Check was rejected by Firebase. Confirm the reCAPTCHA Enterprise site key is linked to the correct Web app and ifinanca.pages.dev is authorized.',
+      'appCheck/initial-throttle':
+        'App Check was rejected and is temporarily throttled. Fix Firebase/reCAPTCHA Enterprise settings and test in an incognito window.',
+      'appCheck/throttled':
+        'App Check is temporarily throttled after a 403 error. Fix the settings and test in an incognito window or clear site data.',
       'app-check/unknown': 'Could not complete security verification. Try again shortly.',
     },
     'es-ES': {
@@ -247,6 +259,12 @@ export function getAppCheckErrorMessage(language: AppLanguage = 'pt-BR'): string
         'App Check no se inicializo. Revisa VITE_FIREBASE_APPCHECK_SITE_KEY y el dominio autorizado en reCAPTCHA Enterprise.',
       'app-check/timeout':
         'La verificacion de seguridad tardo demasiado. Confirma que ifinanca.pages.dev este registrado en reCAPTCHA Enterprise e intentalo de nuevo.',
+      'appCheck/fetch-status-error':
+        'App Check fue rechazado por Firebase. Confirma que la site key reCAPTCHA Enterprise este vinculada a la app Web correcta y que ifinanca.pages.dev este autorizado.',
+      'appCheck/initial-throttle':
+        'App Check fue rechazado y entro en pausa temporal. Corrige Firebase/reCAPTCHA Enterprise y prueba en una ventana privada.',
+      'appCheck/throttled':
+        'App Check esta temporalmente bloqueado despues de un error 403. Corrige la configuracion y prueba en una ventana privada o limpia los datos del sitio.',
       'app-check/unknown': 'No fue posible completar la verificacion de seguridad. Intentalo de nuevo en unos instantes.',
     },
   }

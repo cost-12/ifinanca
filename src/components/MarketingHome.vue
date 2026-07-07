@@ -189,15 +189,15 @@ function openAccess(mode: AccessMode) {
         <div class="absolute inset-0 -z-10 bg-black/62"></div>
         <div class="mx-auto flex min-h-[calc(74vh-8rem)] max-w-370 items-center">
           <div class="max-w-3xl">
-            <BrandLogo class="mb-6 h-32 w-32 shadow-2xl shadow-black/30" variant="full" />
-            <div class="mb-5 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/12 px-4 py-2 text-sm font-bold text-white backdrop-blur">
+            <BrandLogo class="mb-6 h-28 w-28 shadow-2xl shadow-black/30 sm:h-32 sm:w-32" variant="full" />
+            <div class="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-white/25 bg-white/12 px-4 py-2 text-sm font-bold text-white backdrop-blur">
               <MaterialIcon fill name="savings" :size="17" />
-              {{ text.heroBadge }}
+              <span class="min-w-0">{{ text.heroBadge }}</span>
             </div>
-            <h1 class="max-w-3xl text-4xl font-black leading-[1.04] sm:text-6xl lg:text-7xl">
+            <h1 class="max-w-3xl text-3xl font-black leading-[1.04] min-[360px]:text-4xl sm:text-6xl lg:text-7xl">
               {{ text.heroTitle }}
             </h1>
-            <p class="mt-6 max-w-2xl text-lg leading-8 text-white/82 sm:text-xl">
+            <p class="mt-6 max-w-2xl text-base leading-7 text-white/82 sm:text-xl sm:leading-8">
               {{ text.heroBody }}
             </p>
             <div class="mt-8 flex flex-col gap-3 sm:flex-row">
