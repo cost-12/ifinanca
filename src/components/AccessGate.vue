@@ -74,6 +74,7 @@ const isValidEmail = computed(() => /^\S+@\S+\.\S+$/.test(form.email))
 const isRegisterMode = computed(() => authMode.value === 'register')
 const passwordIsValid = computed(() => form.password.length >= 6)
 const passwordMatches = computed(() => !isRegisterMode.value || form.password === form.confirmPassword)
+// Centraliza a regra de habilitacao do formulario para cadastro e login.
 const canSubmit = computed(() => {
   if (!isFirebaseConfigured || !isValidEmail.value || !passwordIsValid.value || !passwordMatches.value) {
     return false
@@ -99,6 +100,7 @@ function setAuthMode(nextMode: 'login' | 'register') {
 watch(
   () => props.initialMode,
   (nextMode) => {
+    // A home muda o hash; o App repassa o modo correto para este componente.
     if (!nextMode || nextMode === authMode.value) {
       return
     }
@@ -112,6 +114,7 @@ onMounted(() => {
     return
   }
 
+  // Aquece o App Check antes do clique no Google para reduzir falhas no popup.
   void warmUpAppCheck().then((status) => {
     appCheckStatus.value = status
   })
@@ -138,6 +141,7 @@ async function submitAccess() {
   successMessage.value = ''
 
   try {
+    // Cadastro cria perfil e volta para login; login emite o perfil autenticado.
     if (isRegisterMode.value) {
       await registerWithEmailProfile({
         name: form.name,
@@ -197,6 +201,7 @@ async function continueWithGoogle() {
   successMessage.value = ''
 
   try {
+    // Quando App Check esta configurado, o token precisa estar valido antes do Google.
     if (appCheckSiteKey) {
       await ensureAppCheckReady()
       appCheckStatus.value = 'ready'

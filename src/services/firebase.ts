@@ -101,6 +101,7 @@ function configureAppCheckDebugToken() {
     return
   }
 
+  // Em desenvolvimento, o SDK do App Check le esse global antes de inicializar.
   ;(globalThis as typeof globalThis & { FIREBASE_APPCHECK_DEBUG_TOKEN?: string }).FIREBASE_APPCHECK_DEBUG_TOKEN =
     debugToken
 }
@@ -130,6 +131,7 @@ async function fetchAppCheckToken(timeoutMs: number) {
     throw createAppCheckError('app-check/not-initialized', 'App Check nao inicializado.')
   }
 
+  // getToken pode ficar pendente quando a configuracao externa falha; o timeout melhora o feedback.
   return new Promise<Awaited<ReturnType<typeof getToken>>>((resolve, reject) => {
     const timeoutId = window.setTimeout(() => {
       reject(createAppCheckError('app-check/timeout', 'Tempo esgotado ao obter token do App Check.'))
@@ -180,6 +182,7 @@ export async function ensureAppCheckReady(options?: { timeoutMs?: number; retrie
   const retries = options?.retries ?? APP_CHECK_MAX_RETRIES
   let lastError: unknown
 
+  // Pequenas retentativas cobrem latencia de rede sem mascarar erro 403 de configuracao.
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
       await fetchAppCheckToken(timeoutMs)
@@ -212,6 +215,7 @@ export function warmUpAppCheck(force = false) {
     return warmUpPromise
   }
 
+  // Reutiliza a mesma Promise para evitar varias chamadas simultaneas ao App Check.
   appCheckStatus = 'loading'
   warmUpPromise = ensureAppCheckReady()
     .then(() => 'ready' as const)

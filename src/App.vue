@@ -55,6 +55,7 @@ function syncPublicViewFromHash() {
     return
   }
 
+  // Usa hashes simples para abrir login/cadastro sem adicionar Vue Router.
   const hash = window.location.hash.toLowerCase()
 
   if (hash === '#login' || hash === '#entrar') {
@@ -150,6 +151,7 @@ onMounted(() => {
   window.addEventListener('hashchange', syncPublicViewFromHash)
   window.addEventListener('popstate', syncPublicViewFromHash)
 
+  // Este listener decide se o usuario ve a area publica ou o dashboard.
   unsubscribeAuth = observeAuthState(async (user) => {
     authMessage.value = ''
 
@@ -193,6 +195,7 @@ watch(
   language,
   (nextLanguage) => {
     if (typeof document !== 'undefined') {
+      // Mantem atributos globais coerentes para acessibilidade e SEO basico.
       document.documentElement.lang = languageLocales[nextLanguage]
       document.documentElement.dir = 'ltr'
     }

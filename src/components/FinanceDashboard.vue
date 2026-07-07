@@ -107,6 +107,7 @@ const totalBalance = computed(() => dashboardBankConnections.value.reduce((total
 const incomeTotal = computed(() => dashboardTransactions.value.filter((item) => item.amount > 0).reduce((total, item) => total + item.amount, 0))
 const outcomeTotal = computed(() => Math.abs(dashboardTransactions.value.filter((item) => item.amount < 0).reduce((total, item) => total + item.amount, 0)))
 const assetTotal = computed(() => assets.reduce((total, asset) => total + asset.amount, 0))
+// As notificacoes sao derivadas dos dados atuais, sem estado duplicado manual.
 const notifications = computed<NotificationItem[]>(() => {
   const bankAlerts = dashboardBankConnections.value
     .filter((bank) => bank.newTransactions > 0 || bank.status === 'Pendente')
@@ -167,6 +168,7 @@ function mapPluggyAccount(account: PluggyAccount, index: number): BankConnection
 }
 
 function mapPluggyTransaction(transaction: PluggyTransaction): Transaction {
+  // A Pluggy separa CREDIT/DEBIT; o dashboard usa positivo para entrada e negativo para saida.
   const isCredit = transaction.type === 'CREDIT' || transaction.amount > 0
   const isPosted = transaction.status === 'POSTED'
 
@@ -207,6 +209,7 @@ function mapRemoteTransaction(transaction: { id: string; title: string; amount: 
 }
 
 async function refreshTransactions() {
+  // Data Connect e opcional: se nao houver dados remotos, mantemos o modo demonstracao.
   if (!props.profile.id) {
     dashboardTransactions.value = [...mockTransactions]
     transactionsSource.value = 'mock'
@@ -243,6 +246,7 @@ async function toggleTransactionStatus(transactionId: string, nextStatus: Transa
   const previousStatus = target.status
   isUpdatingTransactionStatus.value = transactionId
   transactionUpdateFeedback.value = null
+  // Atualizacao otimista: a interface muda na hora e reverte se o backend falhar.
   target.status = nextStatus
 
   try {
@@ -366,6 +370,7 @@ function loadImage(source: string) {
 }
 
 async function createAvatarDataUrl(file: File) {
+  // Normaliza qualquer foto em JPEG quadrado para evitar uploads grandes no perfil.
   if (!file.type.startsWith('image/')) {
     throw new Error(tr('profile.imageTypeError'))
   }
@@ -458,6 +463,7 @@ async function connectAccount() {
   connectMessage.value = ''
   connectError.value = ''
 
+  // O widget da Pluggy devolve status; apenas "connected" gera persistencia do itemId.
   const result = await openPluggyConnect({
     clientUserId: props.profile.id,
     userEmail: props.profile.email,

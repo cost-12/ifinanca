@@ -131,6 +131,7 @@ export async function openPluggyConnect(
     }
   }
 
+  // Importacao sob demanda evita carregar o widget Pluggy antes de o usuario conectar uma conta.
   const { PluggyConnect } = await import('pluggy-connect-sdk')
 
   return new Promise<PluggyConnectionResult>((resolve) => {

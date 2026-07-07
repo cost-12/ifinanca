@@ -109,3 +109,8 @@ npm run test:e2e
 ```
 
 Veja [docs/pluggy-firebase.md](docs/pluggy-firebase.md) para o fluxo Pluggy + Cloudflare + Firebase.
+
+## Contribuicao e aprendizado
+
+- Veja [CONTRIBUTING.md](CONTRIBUTING.md) para o fluxo de contribuicao.
+- Veja [docs/vue-framework-guide.md](docs/vue-framework-guide.md) para entender como Vue 3 funciona no projeto.

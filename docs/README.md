@@ -14,6 +14,7 @@ iFinanca é uma aplicação web de gestão financeira pessoal construída com Vu
 - suporte a internacionalização em português, inglês e espanhol
 - integração opcional com Firebase Data Connect para sincronizar usuários e transações
 - tema claro/escuro e experiência responsiva
+- guia didático de Vue.js para iniciantes no projeto
 
 ## Arquitetura
 
@@ -108,6 +109,7 @@ npm run cloudflare:deploy
 - App Check com reCAPTCHA Enterprise para fortalecer o fluxo de login do Google
 - a chave de site do reCAPTCHA é usada no frontend via VITE_FIREBASE_APPCHECK_SITE_KEY; a chave secreta deve ficar em uma variável secreta do servidor, como no Cloudflare Pages
 - veja [auth-appcheck.md](auth-appcheck.md) para domínios autorizados, App Check e troubleshooting
+- veja [vue-framework-guide.md](vue-framework-guide.md) para entender como Vue 3 funciona neste projeto
 
 ### Pluggy Connect
 
