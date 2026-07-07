@@ -125,10 +125,6 @@ async function retrySecurityCheck() {
   appCheckStatus.value = 'loading'
   const status = await retryAppCheckWarmUp()
   appCheckStatus.value = status
-
-  if (status === 'error') {
-    errorMessage.value = getAppCheckErrorMessage(props.language)
-  }
 }
 
 async function submitAccess() {
@@ -218,7 +214,7 @@ async function continueWithGoogle() {
 
     if (appCheckSiteKey && code.startsWith('app-check/')) {
       appCheckStatus.value = 'error'
-      errorMessage.value = getAppCheckErrorMessage(props.language)
+      errorMessage.value = ''
     } else {
       errorMessage.value = getFirebaseAuthErrorMessage(error, props.language)
     }

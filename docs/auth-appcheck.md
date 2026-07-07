@@ -27,6 +27,8 @@ VITE_FIREBASE_APPCHECK_SITE_KEY=
 
 `VITE_FIREBASE_APPCHECK_SITE_KEY` deve ser a **site key do reCAPTCHA Enterprise** registrada para os dominios abaixo.
 
+Como toda variavel `VITE_*`, esse valor fica embutido no bundle gerado pelo `npm run build`. Ao alterar essa chave no Cloudflare Pages, faca um novo deploy para que o navegador receba o JavaScript atualizado.
+
 ### Secrets (servidor)
 
 ```txt
@@ -143,3 +145,13 @@ Passos recomendados:
 3. No Google Cloud / reCAPTCHA Enterprise, abra essa mesma chave e adicione `ifinanca.pages.dev` aos dominios permitidos.
 4. No Firebase Authentication, em **Settings > Authorized domains**, confirme `ifinanca.pages.dev`.
 5. Depois de um 403, o SDK pode aplicar throttle por ate 24h no navegador. Apos corrigir a configuracao, teste em uma janela anonima ou limpe os dados do site.
+
+### Correção temporária para liberar login
+
+Se o objetivo imediato for remover o bloqueio enquanto a chave Enterprise e revisada:
+
+1. No Cloudflare Pages, remova temporariamente a build variable `VITE_FIREBASE_APPCHECK_SITE_KEY`.
+2. Garanta que o enforcement do App Check esteja desativado para os produtos Firebase usados pelo app.
+3. Gere um novo deploy.
+
+Sem `VITE_FIREBASE_APPCHECK_SITE_KEY`, o frontend nao inicializa App Check e a mensagem de verificacao some. Depois que a chave Enterprise estiver correta, recoloque a variavel e faca outro deploy.
