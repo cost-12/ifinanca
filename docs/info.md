@@ -65,7 +65,7 @@ flowchart TB
 | Open Finance | Pluggy Connect via Pages Function |
 | Backend opcional | Firebase Data Connect (GraphQL) |
 | Testes | Vitest (unit) + Playwright (e2e mínimo) |
-| Node | 22.18.0 (`.nvmrc`) |
+| Node | 24.15.0 (`.nvmrc` e `.node-version`) |
 
 ---
 

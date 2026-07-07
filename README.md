@@ -18,7 +18,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Use Node 22.18.0 ou superior compativel. O arquivo `.nvmrc` fixa 22.18.0 para o build remoto do Cloudflare Pages.
+Use Node 24.15.0 ou superior compativel. Os arquivos `.nvmrc` e `.node-version` fixam 24.15.0 para alinhar o ambiente local ao build remoto do Cloudflare Pages.
 
 O `.env.local` local ja esta apontado para o app Web Firebase `iFinanca` do projeto `pluggy-firebase`. Mantenha esse arquivo fora do git.
 
@@ -53,8 +53,10 @@ Production branch: main
 Em `Settings > Environment variables`, adicione tambem:
 
 ```txt
-NODE_VERSION=22.18.0
+NODE_VERSION=24.15.0
 ```
+
+O Cloudflare Pages permite escolher a versao do Node via `NODE_VERSION`, `.nvmrc` ou `.node-version`. No build system v3, o campo `engines` do `package.json` nao e usado para detectar automaticamente a versao, entao mantenha `NODE_VERSION=24.15.0` configurado no painel.
 
 O erro `Output directory "dist" not found` acontece quando o Pages tenta publicar `dist` sem antes executar o build. O `wrangler.toml` informa a pasta de saida (`pages_build_output_dir = "dist"`), mas o build automatico pelo Git ainda precisa do campo `Build command` configurado no painel.
 
