@@ -61,6 +61,16 @@ O Cloudflare Pages permite escolher a versao do Node via `NODE_VERSION`, `.nvmrc
 
 Se a tela de build mostrar `Deploy command: npx wrangler deploy`, altere para `npm run deploy` ou `npx wrangler pages deploy dist --project-name ifinanca`. O comando `wrangler deploy` e para Workers e falha neste projeto com `Missing entry-point to Worker script or to assets directory`.
 
+Se o deploy falhar com `Authentication error [code: 10000]` ao chamar `/pages/projects/ifinanca`, o build ja passou e o problema esta no token de deploy. Crie ou atualize o token usado em `CLOUDFLARE_API_TOKEN` com:
+
+```txt
+Permission: Account > Cloudflare Pages > Edit
+Account Resources: Include > Thedelacosta@gmail.com's Account
+CLOUDFLARE_ACCOUNT_ID=42f87161e9eae328eb49814a23fa0364
+```
+
+No painel de Builds, o campo `Build token` tambem precisa apontar para um token com essa permissao. Um token apenas de Worker ou sem `Cloudflare Pages: Edit` falha mesmo que o usuario seja Super Administrator.
+
 O erro `Output directory "dist" not found` acontece quando o Pages tenta publicar `dist` sem antes executar o build. O `wrangler.toml` informa a pasta de saida (`pages_build_output_dir = "dist"`), mas o build automatico pelo Git ainda precisa do campo `Build command` configurado no painel.
 
 ## Secrets da Pluggy
