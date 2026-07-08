@@ -16,7 +16,7 @@ const props = withDefaults(
 )
 
 const source = computed(() => {
-  if (props.variant === 'favicon') return '/favicon-192x192.png?v=2'
+  if (props.variant === 'favicon') return logoMark
   if (props.variant === 'full') return logoFull
   if (props.variant === 'mark') return logoMark
   return logoWordmark
@@ -24,5 +24,5 @@ const source = computed(() => {
 </script>
 
 <template>
-  <img :alt="alt" class="select-none rounded-xl object-contain" draggable="false" :src="source" />
+  <img :alt="alt" class="select-none rounded-xl object-contain" decoding="async" draggable="false" :src="source" />
 </template>
