@@ -13,6 +13,7 @@ import {
   updateUserProfileDocument,
 } from '@/services/firebase'
 import { syncUserWithDataConnect, updateUserInDataConnect } from '@/services/dataconnect'
+import { initializeTelemetry, trackPageView, trackTelemetryEvent } from '@/services/telemetry'
 import type { AppLanguage, AppTheme, UserProfile } from '@/types/finance'
 
 const PROFILE_STORAGE_KEY = 'ifinanca.profile'
@@ -76,6 +77,13 @@ function pushPath(pathname: string) {
   window.history.pushState(null, '', pathname)
 }
 
+function reportPublicView(source: string) {
+  trackPageView(publicView.value, {
+    source,
+    accessMode: publicView.value === 'access' ? accessMode.value : undefined,
+  })
+}
+
 function syncPublicViewFromLocation() {
   if (typeof window === 'undefined') {
     return
@@ -87,6 +95,7 @@ function syncPublicViewFromLocation() {
     accessMode.value = 'login'
     publicView.value = 'access'
     replacePath(accessRoutes.login)
+    reportPublicView('legacy-hash')
     return
   }
 
@@ -94,6 +103,7 @@ function syncPublicViewFromLocation() {
     accessMode.value = 'register'
     publicView.value = 'access'
     replacePath(accessRoutes.register)
+    reportPublicView('legacy-hash')
     return
   }
 
@@ -102,6 +112,7 @@ function syncPublicViewFromLocation() {
     accessMode.value = 'login'
     publicView.value = 'access'
     if (pathname !== accessRoutes.login) replacePath(accessRoutes.login)
+    reportPublicView('location')
     return
   }
 
@@ -109,21 +120,25 @@ function syncPublicViewFromLocation() {
     accessMode.value = 'register'
     publicView.value = 'access'
     if (pathname !== accessRoutes.register) replacePath(accessRoutes.register)
+    reportPublicView('location')
     return
   }
 
   publicView.value = 'home'
+  reportPublicView('location')
 }
 
 function openAccess(nextMode: AccessMode) {
   accessMode.value = nextMode
   publicView.value = 'access'
   pushPath(accessRoutes[nextMode])
+  reportPublicView('cta')
 }
 
 function openMarketingHome() {
   publicView.value = 'home'
   pushPath('/')
+  reportPublicView('brand')
 }
 
 function persistProfile(nextProfile: UserProfile) {
@@ -138,6 +153,9 @@ function clearProfile() {
 
 function handleAuthenticated(nextProfile: UserProfile) {
   persistProfile(nextProfile)
+  trackTelemetryEvent('auth.authenticated', {
+    hasPluggyItems: Boolean(nextProfile.pluggyItemIds?.length),
+  })
 }
 
 async function handleProfileUpdated(nextProfile: UserProfile) {
@@ -150,31 +168,40 @@ async function handleProfileUpdated(nextProfile: UserProfile) {
       await updateUserInDataConnect(nextProfile)
       await syncUserWithDataConnect(nextProfile)
     }
+    trackTelemetryEvent('profile.updated', {
+      hasAvatar: Boolean(nextProfile.avatarUrl),
+      dataconnect: Boolean(import.meta.env.VITE_FIREBASE_DATACONNECT_ENDPOINT),
+    })
   } catch (error) {
     authMessage.value = getFirebaseAuthErrorMessage(error, language.value)
+    trackTelemetryEvent('profile.update_error', { error }, { severity: 'error' })
   }
 }
 
 function handleThemeChange(nextTheme: AppTheme) {
   theme.value = nextTheme
   window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme)
+  trackTelemetryEvent('settings.theme_changed', { theme: nextTheme })
 }
 
 function handleLanguageChange(nextLanguage: AppLanguage) {
   language.value = nextLanguage
   window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage)
+  trackTelemetryEvent('settings.language_changed', { language: nextLanguage })
 }
 
 async function handleLogout() {
   try {
     await logoutUser()
   } finally {
+    trackTelemetryEvent('auth.logout')
     clearProfile()
     openMarketingHome()
   }
 }
 
 onMounted(() => {
+  initializeTelemetry()
   syncPublicViewFromLocation()
   window.addEventListener('popstate', syncPublicViewFromLocation)
 
@@ -185,6 +212,7 @@ onMounted(() => {
     if (!user) {
       clearProfile()
       authReady.value = true
+      trackTelemetryEvent('auth.state', { authenticated: false }, { severity: 'debug' })
       return
     }
 
@@ -193,6 +221,7 @@ onMounted(() => {
       authMessage.value = translate(language.value, 'auth.verifyBeforeLogin')
       await logoutUser()
       authReady.value = true
+      trackTelemetryEvent('auth.email_unverified', {}, { severity: 'warning' })
       return
     }
 
@@ -203,9 +232,14 @@ onMounted(() => {
       if (import.meta.env.VITE_FIREBASE_DATACONNECT_ENDPOINT) {
         await syncUserWithDataConnect(profileFromFirebase)
       }
+      trackTelemetryEvent('auth.state', {
+        authenticated: true,
+        dataconnect: Boolean(import.meta.env.VITE_FIREBASE_DATACONNECT_ENDPOINT),
+      })
     } catch (error) {
       clearProfile()
       authMessage.value = getFirebaseAuthErrorMessage(error, language.value)
+      trackTelemetryEvent('auth.profile_load_error', { error }, { severity: 'error' })
     } finally {
       authReady.value = true
     }

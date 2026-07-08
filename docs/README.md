@@ -13,6 +13,7 @@ iFinanca é uma aplicação web de gestão financeira pessoal construída com Vu
 - integração com Pluggy Connect para conectar contas bancárias
 - suporte a internacionalização em português, inglês e espanhol
 - integração opcional com Firebase Data Connect para sincronizar usuários e transações
+- telemetria sanitizada para diagnóstico de autenticação, Pluggy, Data Connect e desempenho
 - tema claro/escuro e experiência responsiva
 - guia didático de Vue.js para iniciantes no projeto
 
@@ -33,6 +34,7 @@ iFinanca é uma aplicação web de gestão financeira pessoal construída com Vu
 - Firebase Authentication para autenticação
 - Firestore para armazenamento de perfis de usuário
 - Cloudflare Pages Functions para emissão de token Pluggy e leitura de contas/transações
+- Cloudflare Pages Function em `/api/telemetry` para logs estruturados de diagnóstico
 - Firebase Data Connect como camada opcional de sincronização
 
 ### Estrutura de pastas
@@ -85,6 +87,9 @@ VITE_FIREBASE_APPCHECK_SITE_KEY=
 VITE_PLUGGY_CONNECT_TOKEN_URL=/api/connect-token
 VITE_PLUGGY_INCLUDE_SANDBOX=true
 VITE_FIREBASE_DATACONNECT_ENDPOINT=
+VITE_TELEMETRY_ENABLED=
+VITE_TELEMETRY_DEBUG=false
+VITE_TELEMETRY_ENDPOINT=/api/telemetry
 ```
 
 ## Scripts disponíveis
@@ -122,6 +127,14 @@ npm run cloudflare:deploy
 
 - integração opcional para sincronizar usuários e transações
 - schema e queries/mutations em dataconnect/
+
+### Telemetria
+
+- eventos de frontend em src/services/telemetry.ts
+- ingestão serverless em functions/api/telemetry.ts
+- logs estruturados no Cloudflare Pages
+- forwarding opcional para API externa por TELEMETRY_INGEST_URL
+- veja [telemetry-diagnostics.md](telemetry-diagnostics.md) para eventos, variáveis e testes
 
 ## Boas práticas
 

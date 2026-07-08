@@ -41,6 +41,7 @@ import LanguageFlagSelect from '@/components/LanguageFlagSelect.vue'
 import MaterialIcon from '@/components/MaterialIcon.vue'
 import { loadTransactionsForUser, updateTransactionStatusInDataConnect } from '@/services/dataconnect'
 import { fetchPluggyItemData, isPluggySandboxEnabled, openPluggyConnect } from '@/services/pluggy'
+import { trackPageView, trackTelemetryEvent } from '@/services/telemetry'
 import type { PluggyAccount, PluggyTransaction } from '@/services/pluggy'
 import type { AppLanguage, AppTheme, BankConnection, DataSource, Transaction, UserProfile } from '@/types/finance'
 
@@ -100,6 +101,10 @@ const pluggySandboxEnabled = isPluggySandboxEnabled()
 
 function tr(key: Parameters<typeof translate>[1], variables?: Parameters<typeof translate>[2]) {
   return translate(props.language, key, variables)
+}
+
+function errorCode(error: unknown) {
+  return error && typeof error === 'object' && 'code' in error ? String(error.code) : 'unknown'
 }
 
 const tabs = computed<{ id: TabId; label: string }[]>(() => [
@@ -263,10 +268,12 @@ async function refreshTransactions() {
   if (!props.profile.id) {
     dashboardTransactions.value = [...mockTransactions]
     transactionsSource.value = 'mock'
+    trackTelemetryEvent('dataconnect.skipped', { reason: 'missing-profile-id' }, { severity: 'debug' })
     return
   }
 
   isLoadingTransactions.value = true
+  trackTelemetryEvent('dataconnect.transactions_load_started')
 
   try {
     const remoteTransactions = await loadTransactionsForUser(props.profile.id)
@@ -274,16 +281,21 @@ async function refreshTransactions() {
     if (remoteTransactions.length) {
       dashboardTransactions.value = remoteTransactions.map(mapRemoteTransaction)
       transactionsSource.value = 'dataconnect'
+      trackTelemetryEvent('dataconnect.transactions_loaded', {
+        count: remoteTransactions.length,
+      })
       return
     }
-  } catch {
+  } catch (error) {
     // Fallback to mocks when the endpoint is unavailable or returns an error.
+    trackTelemetryEvent('dataconnect.transactions_error', { code: errorCode(error), error }, { severity: 'warning' })
   } finally {
     isLoadingTransactions.value = false
   }
 
   dashboardTransactions.value = [...mockTransactions]
   transactionsSource.value = 'mock'
+  trackTelemetryEvent('dashboard.mock_data_used', { source: 'transactions' }, { severity: 'debug' })
 }
 
 async function toggleTransactionStatus(transactionId: string, nextStatus: Transaction['status']) {
@@ -306,13 +318,15 @@ async function toggleTransactionStatus(transactionId: string, nextStatus: Transa
       type: 'success',
       message: nextStatus === 'Confirmado' ? 'Transação confirmada no Data Connect.' : 'Status atualizado para previsto.',
     }
-  } catch {
+    trackTelemetryEvent('dataconnect.transaction_status_updated', { nextStatus })
+  } catch (error) {
     target.status = previousStatus
     transactionUpdateFeedback.value = {
       id: transactionId,
       type: 'error',
       message: 'Não foi possível atualizar o status no Data Connect.',
     }
+    trackTelemetryEvent('dataconnect.transaction_status_error', { code: errorCode(error), nextStatus, error }, { severity: 'error' })
   } finally {
     isUpdatingTransactionStatus.value = null
   }
@@ -353,6 +367,7 @@ function toggleBalanceVisibility() {
   if (globalThis.window !== undefined) {
     globalThis.localStorage.setItem(`${BALANCE_VISIBILITY_STORAGE_PREFIX}.${props.profile.id}`, String(isBalanceVisible.value))
   }
+  trackTelemetryEvent('dashboard.balance_visibility_changed', { visible: isBalanceVisible.value })
 }
 
 function persistReadNotificationIds(nextIds: string[]) {
@@ -479,6 +494,7 @@ async function handleAvatarSelected(event: Event) {
     profileMenuOpen.value = false
   } catch (error) {
     avatarError.value = error instanceof Error ? error.message : tr('profile.imageGenericError')
+    trackTelemetryEvent('profile.avatar_error', { error }, { severity: 'warning' })
   } finally {
     input.value = ''
   }
@@ -490,6 +506,7 @@ function removeAvatar() {
   emit('profileUpdated', nextProfile)
   avatarMessage.value = tr('profile.photoRemoved')
   avatarError.value = ''
+  trackTelemetryEvent('profile.avatar_removed')
 }
 
 async function loadPluggyData(itemId: string) {
@@ -498,6 +515,7 @@ async function loadPluggyData(itemId: string) {
   isLoadingPluggyData.value = true
   connectError.value = ''
   pluggyPartialErrors.value = []
+  trackTelemetryEvent('pluggy.data_load_started', { hasItemId: Boolean(itemId) })
 
   try {
     const data = await fetchPluggyItemData(itemId)
@@ -517,6 +535,15 @@ async function loadPluggyData(itemId: string) {
     transactionsSource.value = 'pluggy'
     pluggyDataLoadedAt.value = data.loadedAt ?? new Date().toISOString()
     pluggyPartialErrors.value = data.partialErrors ?? []
+    trackTelemetryEvent(
+      'pluggy.data_loaded',
+      {
+        accounts: data.accounts.length,
+        transactions: data.transactions.length,
+        partialErrors: data.partialErrors?.length ?? 0,
+      },
+      { severity: data.partialErrors?.length ? 'warning' : 'info' },
+    )
 
     if (!data.accounts.length && !data.transactions.length) {
       connectMessage.value = 'Conexão Pluggy encontrada, mas os dados ainda não foram sincronizados.'
@@ -525,6 +552,7 @@ async function loadPluggyData(itemId: string) {
     }
   } catch (error) {
     connectError.value = error instanceof Error ? error.message : 'Erro ao carregar dados do Pluggy'
+    trackTelemetryEvent('pluggy.data_error', { code: errorCode(error), error }, { severity: 'error' })
   } finally {
     isLoadingPluggyData.value = false
   }
@@ -538,6 +566,10 @@ async function connectAccount() {
   isConnecting.value = true
   connectMessage.value = ''
   connectError.value = ''
+  trackTelemetryEvent('pluggy.connect_started', {
+    sandbox: pluggySandboxEnabled,
+    hasExistingItem: Boolean(connectedItemId.value),
+  })
 
   // O widget da Pluggy devolve status; apenas "connected" gera persistencia do itemId.
   const result = await openPluggyConnect({
@@ -545,6 +577,7 @@ async function connectAccount() {
     userEmail: props.profile.email,
     onEvent: (payload) => {
       connectMessage.value = tr('pluggy.event', { event: payload.event })
+      trackTelemetryEvent('pluggy.widget_event', { event: payload.event }, { severity: 'debug' })
     },
   })
 
@@ -553,6 +586,7 @@ async function connectAccount() {
   if (result.status === 'connected' && result.itemId) {
     connectedItemId.value = result.itemId
     connectMessage.value = result.message
+    trackTelemetryEvent('pluggy.connect_finished', { status: result.status })
 
     // Persist the new itemId into the user profile so it survives page reload.
     const updatedItemIds = [...(props.profile.pluggyItemIds ?? [])]
@@ -565,9 +599,11 @@ async function connectAccount() {
     await loadPluggyData(result.itemId)
   } else if (result.status === 'error') {
     connectError.value = result.message
+    trackTelemetryEvent('pluggy.connect_finished', { status: result.status, message: result.message }, { severity: 'error' })
   } else {
     // status === 'closed': user dismissed the widget voluntarily.
     connectMessage.value = result.message
+    trackTelemetryEvent('pluggy.connect_finished', { status: result.status }, { severity: 'warning' })
   }
 }
 
@@ -617,6 +653,7 @@ async function restoreDashboardData() {
 }
 
 onMounted(async () => {
+  trackPageView('dashboard', { initialTab: activeTab.value })
   await restoreDashboardData()
 })
 
@@ -628,6 +665,10 @@ watch(
     void restoreDashboardData()
   },
 )
+
+watch(activeTab, (nextTab) => {
+  trackTelemetryEvent('dashboard.tab_changed', { tab: nextTab })
+})
 </script>
 
 <template>

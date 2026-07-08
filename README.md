@@ -9,6 +9,7 @@ Plataforma Vue para gestao financeira pessoal com visual inspirado no Meu Pluggy
 - Banco de dados: Firebase Firestore para perfis protegidos em `users/{uid}`.
 - Pluggy: Cloudflare Pages Functions em `/api/connect-token` e `/api/pluggy-data`, mantendo credenciais server-side.
 - SPA fallback: `public/_redirects` redireciona rotas para `index.html`.
+- Telemetria: `/api/telemetry` registra eventos sanitizados para diagnosticar autenticação, Pluggy, Data Connect e desempenho.
 
 ## Setup local
 
@@ -34,6 +35,9 @@ VITE_FIREBASE_APP_ID=
 VITE_FIREBASE_MEASUREMENT_ID=
 VITE_PLUGGY_CONNECT_TOKEN_URL=/api/connect-token
 VITE_PLUGGY_INCLUDE_SANDBOX=true
+VITE_TELEMETRY_ENABLED=
+VITE_TELEMETRY_DEBUG=false
+VITE_TELEMETRY_ENDPOINT=/api/telemetry
 ```
 
 `VITE_PLUGGY_CONNECT_TOKEN_URL` pode ficar omitida quando o app estiver usando o endpoint same-origin `/api/connect-token`. Use `VITE_PLUGGY_INCLUDE_SANDBOX=true` somente em desenvolvimento, preview ou apresentacao controlada.
@@ -89,6 +93,12 @@ Para desenvolvimento local com `npm run cloudflare:dev`, copie `.dev.vars.exampl
 
 O endpoint `/api/pluggy-data` tambem usa esses secrets para buscar dados dinamicos da Pluggy. Se `FIREBASE_WEB_API_KEY` estiver definido no Cloudflare, o frontend precisa estar autenticado para enviar o Firebase ID token na chamada.
 
+## Telemetria
+
+O frontend envia eventos de diagnóstico para `/api/telemetry`. Em produção, o envio fica ativo por padrão, a menos que `VITE_TELEMETRY_ENABLED=false` seja configurado. Para depurar localmente, use `VITE_TELEMETRY_ENABLED=true` e `VITE_TELEMETRY_DEBUG=true`.
+
+No Cloudflare Pages, os eventos aparecem nos logs da Function como `ifinanca.telemetry`. Opcionalmente, configure `TELEMETRY_INGEST_URL` e `TELEMETRY_INGEST_TOKEN` para encaminhar os eventos para uma API externa.
+
 ## Firebase
 
 Habilite os provedores em `Authentication > Sign-in method` no console Firebase:
@@ -129,8 +139,10 @@ npm run test:e2e
 ```
 
 Veja [docs/pluggy-firebase.md](docs/pluggy-firebase.md) para o fluxo Pluggy + Cloudflare + Firebase.
+Veja [docs/telemetry-diagnostics.md](docs/telemetry-diagnostics.md) para os eventos de diagnóstico.
 
 ## Contribuicao e aprendizado
 
 - Veja [CONTRIBUTING.md](CONTRIBUTING.md) para o fluxo de contribuicao.
 - Veja [docs/vue-framework-guide.md](docs/vue-framework-guide.md) para entender como Vue 3 funciona no projeto.
+- Veja [AGENTS.md](AGENTS.md) para contexto rápido de manutenção por desenvolvedores e agentes de IA.

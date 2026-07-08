@@ -54,3 +54,9 @@ RECAPTCHA_MIN_SCORE=0.5
 # Used server-side ONLY to verify Firebase ID tokens via the Google Identity REST API.
 # This is NOT the same as the frontend VITE_FIREBASE_API_KEY (though the value is identical).
 FIREBASE_WEB_API_KEY=replace_with_firebase_web_api_key
+
+# ─── Telemetry / Diagnostics ─────────────────────────────────────────────────
+# Optional external forwarding target for /api/telemetry.
+# Without this URL, telemetry is still visible in Cloudflare Pages Functions logs.
+TELEMETRY_INGEST_URL=
+TELEMETRY_INGEST_TOKEN=

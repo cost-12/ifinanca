@@ -19,6 +19,10 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_APPCHECK_DEBUG_TOKEN?: string
   readonly VITE_PLUGGY_CONNECT_TOKEN_URL?: string
   readonly VITE_PLUGGY_INCLUDE_SANDBOX?: string
+  readonly VITE_TELEMETRY_ENABLED?: string
+  readonly VITE_TELEMETRY_DEBUG?: string
+  readonly VITE_TELEMETRY_ENDPOINT?: string
+  readonly VITE_APP_VERSION?: string
 }
 
 interface ImportMeta {

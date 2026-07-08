@@ -25,6 +25,7 @@ import {
   warmUpAppCheck,
   type AppCheckStatus,
 } from '@/services/firebase'
+import { trackTelemetryEvent } from '@/services/telemetry'
 import type { AccessGoal, AppLanguage, UserProfile } from '@/types/finance'
 
 const props = defineProps<{
@@ -88,10 +89,15 @@ function tr(key: Parameters<typeof translate>[1], variables?: Parameters<typeof 
   return translate(props.language, key, variables)
 }
 
+function errorCode(error: unknown) {
+  return error && typeof error === 'object' && 'code' in error ? String(error.code) : 'unknown'
+}
+
 function setAuthMode(nextMode: 'login' | 'register') {
   authMode.value = nextMode
   errorMessage.value = ''
   successMessage.value = ''
+  trackTelemetryEvent('auth.mode_changed', { mode: nextMode })
 }
 
 watch(
@@ -114,14 +120,17 @@ onMounted(() => {
   // Aquece o App Check antes do clique no Google para reduzir falhas no popup.
   void warmUpAppCheck().then((status) => {
     appCheckStatus.value = status
+    trackTelemetryEvent('app_check.warmup', { status }, { severity: status === 'ready' ? 'debug' : 'warning' })
   })
 })
 
 async function retrySecurityCheck() {
   errorMessage.value = ''
   appCheckStatus.value = 'loading'
+  trackTelemetryEvent('app_check.retry')
   const status = await retryAppCheckWarmUp()
   appCheckStatus.value = status
+  trackTelemetryEvent('app_check.retry_result', { status }, { severity: status === 'ready' ? 'info' : 'warning' })
 }
 
 async function submitAccess() {
@@ -129,9 +138,11 @@ async function submitAccess() {
     return
   }
 
+  const mode = isRegisterMode.value ? 'register' : 'login'
   isSubmitting.value = true
   errorMessage.value = ''
   successMessage.value = ''
+  trackTelemetryEvent('auth.submit', { mode, provider: 'password' })
 
   try {
     // Cadastro cria perfil e volta para login; login emite o perfil autenticado.
@@ -148,6 +159,7 @@ async function submitAccess() {
       authMode.value = 'login'
       form.password = ''
       form.confirmPassword = ''
+      trackTelemetryEvent('auth.success', { mode, provider: 'password', emailVerificationRequired: true })
       return
     }
 
@@ -157,8 +169,10 @@ async function submitAccess() {
     })
 
     emit('authenticated', profile)
+    trackTelemetryEvent('auth.success', { mode, provider: 'password' })
   } catch (error) {
     errorMessage.value = getFirebaseAuthErrorMessage(error, props.language)
+    trackTelemetryEvent('auth.error', { mode, provider: 'password', code: errorCode(error), error }, { severity: 'error' })
   } finally {
     isSubmitting.value = false
   }
@@ -173,12 +187,15 @@ async function resetPassword() {
   isResettingPassword.value = true
   errorMessage.value = ''
   successMessage.value = ''
+  trackTelemetryEvent('auth.password_reset_requested')
 
   try {
     await sendLoginPasswordReset(form.email)
     successMessage.value = tr('auth.resetSent')
+    trackTelemetryEvent('auth.password_reset_sent')
   } catch (error) {
     errorMessage.value = getFirebaseAuthErrorMessage(error, props.language)
+    trackTelemetryEvent('auth.password_reset_error', { code: errorCode(error), error }, { severity: 'error' })
   } finally {
     isResettingPassword.value = false
   }
@@ -192,6 +209,7 @@ async function continueWithGoogle() {
   isGoogleSubmitting.value = true
   errorMessage.value = ''
   successMessage.value = ''
+  trackTelemetryEvent('auth.submit', { mode: 'login', provider: 'google', appCheckStatus: appCheckStatus.value })
 
   try {
     // Quando App Check esta configurado, o token precisa estar valido antes do Google.
@@ -206,8 +224,9 @@ async function continueWithGoogle() {
     })
 
     emit('authenticated', profile)
+    trackTelemetryEvent('auth.success', { provider: 'google' })
   } catch (error) {
-    const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
+    const code = errorCode(error)
 
     if (appCheckSiteKey && code.startsWith('app-check/')) {
       appCheckStatus.value = 'error'
@@ -215,6 +234,7 @@ async function continueWithGoogle() {
     } else {
       errorMessage.value = getFirebaseAuthErrorMessage(error, props.language)
     }
+    trackTelemetryEvent('auth.error', { provider: 'google', code, error }, { severity: 'error' })
   } finally {
     isGoogleSubmitting.value = false
   }
