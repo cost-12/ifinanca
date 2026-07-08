@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { languageOptions } from '@/i18n'
 import BrandLogo from '@/components/BrandLogo.vue'
+import LanguageFlagSelect from '@/components/LanguageFlagSelect.vue'
 import MaterialIcon from '@/components/MaterialIcon.vue'
 import type { AppLanguage } from '@/types/finance'
 
@@ -129,10 +129,6 @@ const copy = {
 
 const text = computed(() => copy[props.language])
 
-function handleLanguageChange(event: Event) {
-  emit('languageChange', (event.target as HTMLSelectElement).value as AppLanguage)
-}
-
 function openAccess(mode: AccessMode) {
   emit('accessRequest', mode)
 }
@@ -154,17 +150,7 @@ function openAccess(mode: AccessMode) {
         </nav>
 
         <div class="flex items-center gap-2">
-          <label class="sr-only" for="home-language">Idioma</label>
-          <select
-            id="home-language"
-            class="select select-sm w-20 border-[#d7e3dc] bg-white text-[#172019]"
-            :value="language"
-            @change="handleLanguageChange"
-          >
-            <option v-for="option in languageOptions" :key="option.value" :value="option.value">
-              {{ option.shortLabel }}
-            </option>
-          </select>
+          <LanguageFlagSelect :language="language" tone="light" @language-change="emit('languageChange', $event)" />
           <button
             class="btn btn-sm hidden border-0 bg-[#101318] px-4 font-bold text-white hover:bg-[#1d2430] sm:inline-flex"
             type="button"

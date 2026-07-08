@@ -6,9 +6,10 @@ import {
   Mail,
   ShieldCheck,
 } from '@lucide/vue'
-import { formatMoney, goalLabels, languageOptions, translate } from '@/i18n'
+import { formatMoney, goalLabels, translate } from '@/i18n'
 import BrandLogo from '@/components/BrandLogo.vue'
 import GoogleLogo from '@/components/GoogleLogo.vue'
+import LanguageFlagSelect from '@/components/LanguageFlagSelect.vue'
 import MaterialIcon from '@/components/MaterialIcon.vue'
 import {
   ensureAppCheckReady,
@@ -85,10 +86,6 @@ const canSubmit = computed(() => {
 
 function tr(key: Parameters<typeof translate>[1], variables?: Parameters<typeof translate>[2]) {
   return translate(props.language, key, variables)
-}
-
-function handleLanguageChange(event: Event) {
-  emit('languageChange', (event.target as HTMLSelectElement).value as AppLanguage)
 }
 
 function setAuthMode(nextMode: 'login' | 'register') {
@@ -237,17 +234,7 @@ async function continueWithGoogle() {
           <span class="badge border-[#1f2937] bg-[#101318] text-zinc-300">Firebase</span>
           <span class="badge border-[#1f2937] bg-[#101318] text-zinc-300">Pluggy</span>
         </div>
-        <label class="sr-only" for="access-language">{{ tr('common.language') }}</label>
-        <select
-          id="access-language"
-          class="select select-sm w-20 border-white/10 bg-[#101318] text-white"
-          :value="language"
-          @change="handleLanguageChange"
-        >
-          <option v-for="option in languageOptions" :key="option.value" :value="option.value">
-            {{ option.shortLabel }}
-          </option>
-        </select>
+        <LanguageFlagSelect :label="tr('common.language')" :language="language" tone="dark" @language-change="emit('languageChange', $event)" />
       </div>
     </header>
 

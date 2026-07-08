@@ -35,8 +35,9 @@ import {
   monthlyFlow,
   transactions as mockTransactions,
 } from '@/data/finance'
-import { formatMoney, formatSignedPercent, languageOptions, translate } from '@/i18n'
+import { formatMoney, formatSignedPercent, translate } from '@/i18n'
 import BrandLogo from '@/components/BrandLogo.vue'
+import LanguageFlagSelect from '@/components/LanguageFlagSelect.vue'
 import MaterialIcon from '@/components/MaterialIcon.vue'
 import { loadTransactionsForUser, updateTransactionStatusInDataConnect } from '@/services/dataconnect'
 import { fetchPluggyItemData, isPluggySandboxEnabled, openPluggyConnect } from '@/services/pluggy'
@@ -408,10 +409,6 @@ function setTheme(nextTheme: AppTheme) {
   emit('themeChange', nextTheme)
 }
 
-function handleLanguageChange(event: Event) {
-  emit('languageChange', (event.target as HTMLSelectElement).value as AppLanguage)
-}
-
 function openAvatarPicker() {
   avatarInput.value?.click()
 }
@@ -655,17 +652,12 @@ watch(
         </nav>
 
         <div class="flex items-center gap-2">
-          <label class="sr-only" for="dashboard-language">{{ tr('common.language') }}</label>
-          <select
-            id="dashboard-language"
-            class="select select-sm w-16 border-white/10 bg-transparent text-sm font-bold text-zinc-300 sm:w-20"
-            :value="language"
-            @change="handleLanguageChange"
-          >
-            <option v-for="option in languageOptions" :key="option.value" :value="option.value">
-              {{ option.shortLabel }}
-            </option>
-          </select>
+          <LanguageFlagSelect
+            :label="tr('common.language')"
+            :language="language"
+            :tone="theme === 'light' ? 'light' : 'dark'"
+            @language-change="emit('languageChange', $event)"
+          />
 
           <button
             :class="['tooltip tooltip-bottom btn btn-ghost btn-square btn-sm hidden sm:inline-flex', theme === 'light' ? 'text-[#17c964]' : 'text-zinc-400']"
