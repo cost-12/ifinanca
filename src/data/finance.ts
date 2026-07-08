@@ -31,7 +31,7 @@ export const bankConnections: BankConnection[] = [
     color: '#ff6b00',
     balance: -126.48,
     newTransactions: 0,
-    status: 'Sem novos lancamentos',
+    status: 'Sem novos lançamentos',
     mask: 'CPF *** *** *** - 00',
   },
   {

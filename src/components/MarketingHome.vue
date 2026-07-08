@@ -19,39 +19,39 @@ const emit = defineEmits<{
 const copy = {
   'pt-BR': {
     navResources: 'Recursos',
-    navEducation: 'Educacao',
-    navSecurity: 'Seguranca',
+    navEducation: 'Educação',
+    navSecurity: 'Segurança',
     navLogin: 'Acessar carteira',
-    heroBadge: 'Educacao e gestao financeira em uma unica plataforma',
+    heroBadge: 'Educação e gestão financeira em uma única plataforma',
     heroTitle: 'Assuma o controle total do seu dinheiro',
     heroBody:
-      'Organize entradas, acompanhe gastos e conecte suas contas em uma experiencia simples para transformar dados financeiros em decisoes melhores.',
-    primaryCta: 'Comecar gratuitamente',
+      'Organize entradas, acompanhe gastos e conecte suas contas em uma experiência simples para transformar dados financeiros em decisões melhores.',
+    primaryCta: 'Começar gratuitamente',
     secondaryCta: 'Entrar',
-    metricBanks: 'conexoes bancarias',
-    metricFlow: 'visao de fluxo',
+    metricBanks: 'conexões bancárias',
+    metricFlow: 'visão de fluxo',
     metricAccess: 'acesso seguro',
     resourcesTitle: 'Uma home promocional para evoluir o iFinanca',
     resourcesBody:
-      'A pagina inicial apresenta o produto antes do login e direciona o usuario para cadastro, acesso e secoes informativas.',
-    resourceOneTitle: 'Organizacao visual',
+      'A página inicial apresenta o produto antes do login e direciona o usuário para cadastro, acesso e seções informativas.',
+    resourceOneTitle: 'Organização visual',
     resourceOneBody:
-      'O usuario entende rapidamente saldo, entradas, saidas e movimentacoes sem depender de planilhas espalhadas.',
-    resourceTwoTitle: 'Consciencia de gastos',
+      'O usuário entende rapidamente saldo, entradas, saídas e movimentações sem depender de planilhas espalhadas.',
+    resourceTwoTitle: 'Consciência de gastos',
     resourceTwoBody:
-      'Acompanhamento de transacoes e categorias ajuda a identificar desperdicios e ajustar habitos financeiros.',
+      'Acompanhamento de transações e categorias ajuda a identificar desperdícios e ajustar hábitos financeiros.',
     resourceThreeTitle: 'Reservas e metas',
     resourceThreeBody:
-      'Metas financeiras, renda mensal e ativos ajudam a planejar reserva de emergencia e objetivos futuros.',
-    educationTitle: 'Educacao financeira aplicada ao dia a dia',
+      'Metas financeiras, renda mensal e ativos ajudam a planejar reserva de emergência e objetivos futuros.',
+    educationTitle: 'Educação financeira aplicada ao dia a dia',
     educationBody:
-      'O conceito da pagina original foi incorporado como uma camada de apresentacao: primeiro o usuario entende os pilares financeiros, depois acessa o ambiente autenticado.',
-    educationOne: 'Controle entradas e saidas com frequencia.',
-    educationTwo: 'Use o fluxo mensal para antecipar decisoes.',
+      'O conceito da página original foi incorporado como uma camada de apresentação: primeiro o usuário entende os pilares financeiros, depois acessa o ambiente autenticado.',
+    educationOne: 'Controle entradas e saídas com frequência.',
+    educationTwo: 'Use o fluxo mensal para antecipar decisões.',
     educationThree: 'Conecte contas para reduzir trabalho manual.',
     securityTitle: 'Do convite ao login seguro',
     securityBody:
-      'Os botoes da home levam ao fluxo real do Firebase Authentication, mantendo verificacao de e-mail, Google login, App Check e credenciais sensiveis no servidor.',
+      'Os botões da home levam ao fluxo real do Firebase Authentication, mantendo verificação de e-mail, Google login, App Check e credenciais sensíveis no servidor.',
     securityCta: 'Criar conta segura',
   },
   'en-US': {
@@ -90,39 +90,39 @@ const copy = {
   },
   'es-ES': {
     navResources: 'Recursos',
-    navEducation: 'Educacion',
+    navEducation: 'Educación',
     navSecurity: 'Seguridad',
     navLogin: 'Abrir cartera',
-    heroBadge: 'Educacion y gestion financiera en una plataforma',
+    heroBadge: 'Educación y gestión financiera en una plataforma',
     heroTitle: 'Toma el control total de tu dinero',
     heroBody:
-      'Organiza ingresos, acompana gastos y conecta cuentas en una experiencia simple para convertir datos financieros en mejores decisiones.',
+      'Organiza ingresos, acompaña gastos y conecta cuentas en una experiencia simple para convertir datos financieros en mejores decisiones.',
     primaryCta: 'Empezar gratis',
     secondaryCta: 'Entrar',
     metricBanks: 'conexiones bancarias',
     metricFlow: 'vista de flujo',
     metricAccess: 'acceso seguro',
-    resourcesTitle: 'Una home promocional para evolucionar iFinanca',
+    resourcesTitle: 'Una página promocional para evolucionar iFinanca',
     resourcesBody:
-      'La pagina inicial presenta el producto antes del login y dirige al usuario a registro, acceso y secciones informativas.',
-    resourceOneTitle: 'Organizacion visual',
+      'La página inicial presenta el producto antes del login y dirige al usuario a registro, acceso y secciones informativas.',
+    resourceOneTitle: 'Organización visual',
     resourceOneBody:
-      'El usuario entiende rapidamente saldo, ingresos, salidas y movimientos sin depender de hojas dispersas.',
+      'El usuario entiende rápidamente saldo, ingresos, salidas y movimientos sin depender de hojas dispersas.',
     resourceTwoTitle: 'Conciencia de gastos',
     resourceTwoBody:
-      'El seguimiento de transacciones y categorias ayuda a identificar desperdicios y ajustar habitos financieros.',
+      'El seguimiento de transacciones y categorías ayuda a identificar desperdicios y ajustar hábitos financieros.',
     resourceThreeTitle: 'Reservas y metas',
     resourceThreeBody:
       'Metas financieras, ingreso mensual y activos ayudan a planear reservas de emergencia y objetivos futuros.',
-    educationTitle: 'Educacion financiera aplicada al dia a dia',
+    educationTitle: 'Educación financiera aplicada al día a día',
     educationBody:
-      'El concepto de la pagina original fue incorporado como capa de presentacion: primero se entienden los pilares y luego se accede al ambiente autenticado.',
+      'El concepto de la página original fue incorporado como capa de presentación: primero se entienden los pilares y luego se accede al ambiente autenticado.',
     educationOne: 'Controla ingresos y salidas con frecuencia.',
     educationTwo: 'Usa el flujo mensual para anticipar decisiones.',
     educationThree: 'Conecta cuentas para reducir trabajo manual.',
-    securityTitle: 'De la invitacion al login seguro',
+    securityTitle: 'De la invitación al login seguro',
     securityBody:
-      'Los botones de la home llevan al flujo real de Firebase Authentication, manteniendo verificacion de email, Google login, App Check y credenciales en servidor.',
+      'Los botones de la página inicial llevan al flujo real de Firebase Authentication, manteniendo verificación de correo electrónico, Google login, App Check y credenciales en servidor.',
     securityCta: 'Crear cuenta segura',
   },
 } satisfies Record<AppLanguage, Record<string, string>>
@@ -171,7 +171,7 @@ function openAccess(mode: AccessMode) {
         <img
           class="absolute inset-0 -z-20 h-full w-full object-cover"
           src="/marketing/planning-table.jpg"
-          alt="Pessoa organizando financas em uma mesa com planilha e caderno"
+          alt="Pessoa organizando finanças em uma mesa com planilha e caderno"
         />
         <div class="absolute inset-0 -z-10 bg-black/62"></div>
         <div class="mx-auto flex min-h-[calc(74vh-8rem)] max-w-370 items-center">
@@ -318,12 +318,12 @@ function openAccess(mode: AccessMode) {
             <div class="rounded-lg border border-white/10 bg-white/6 p-5">
               <MaterialIcon class="mb-4 text-[#76eaa2]" fill name="lock" :size="28" />
               <p class="text-lg font-black">Firebase Auth</p>
-              <p class="mt-2 text-sm leading-6 text-zinc-400">E-mail, Google e verificacao de conta antes do dashboard.</p>
+              <p class="mt-2 text-sm leading-6 text-zinc-400">E-mail, Google e verificação de conta antes do dashboard.</p>
             </div>
             <div class="rounded-lg border border-white/10 bg-white/6 p-5">
               <MaterialIcon class="mb-4 text-[#7dcfff]" fill name="account_balance" :size="28" />
               <p class="text-lg font-black">Pluggy Connect</p>
-              <p class="mt-2 text-sm leading-6 text-zinc-400">Token emitido por funcao serverless e credenciais fora do navegador.</p>
+              <p class="mt-2 text-sm leading-6 text-zinc-400">Token emitido por função serverless e credenciais fora do navegador.</p>
             </div>
           </div>
         </div>

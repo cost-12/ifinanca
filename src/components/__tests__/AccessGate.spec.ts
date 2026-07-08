@@ -16,13 +16,13 @@ vi.mock('@/services/firebase', async (importOriginal) => {
 
   return {
     ...actual,
-    getFirebaseAuthErrorMessage: vi.fn(() => 'Erro de autenticacao'),
+    getFirebaseAuthErrorMessage: vi.fn(() => 'Erro de autenticação'),
     isFirebaseConfigured: true,
     getAppCheckSiteKey: vi.fn(() => ''),
     warmUpAppCheck: vi.fn().mockResolvedValue('disabled'),
     retryAppCheckWarmUp: vi.fn().mockResolvedValue('ready'),
     ensureAppCheckReady: vi.fn().mockResolvedValue(undefined),
-    getAppCheckErrorMessage: vi.fn(() => 'Falha na verificacao de seguranca'),
+    getAppCheckErrorMessage: vi.fn(() => 'Falha na verificação de segurança'),
     loginWithEmailProfile: vi.fn().mockResolvedValue({
       id: 'user-2',
       name: 'Thiago Costa',
@@ -85,7 +85,7 @@ describe('AccessGate', () => {
     await flushPromises()
 
     expect(wrapper.emitted('authenticated')).toBeUndefined()
-    expect(wrapper.text()).toContain('link de verificacao')
+    expect(wrapper.text()).toContain('link de verificação')
     expect(wrapper.text()).toContain('Entre na sua conta')
   })
 
@@ -167,7 +167,7 @@ describe('AccessGate', () => {
     await flushPromises()
 
     expect(getAppCheckErrorMessage).toHaveBeenCalledWith('pt-BR')
-    expect(wrapper.text()).toContain('Falha na verificacao de seguranca')
+    expect(wrapper.text()).toContain('Falha na verificação de segurança')
     expect(wrapper.emitted('authenticated')).toBeUndefined()
   })
 

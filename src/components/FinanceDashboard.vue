@@ -109,7 +109,7 @@ const tabs = computed<{ id: TabId; label: string }[]>(() => [
   { id: 'conexoes', label: tr('nav.connections') },
 ])
 
-const firstName = computed(() => props.profile.name.trim().split(' ')[0] || 'Usuario')
+const firstName = computed(() => props.profile.name.trim().split(' ')[0] || 'Usuário')
 const activeTabLabel = computed(() => tabs.value.find((tab) => tab.id === activeTab.value)?.label ?? tr('nav.overview'))
 const totalBalance = computed(() => dashboardBankConnections.value.reduce((total, bank) => total + bank.balance, 0))
 const incomeTotal = computed(() => dashboardTransactions.value.filter((item) => item.amount > 0).reduce((total, item) => total + item.amount, 0))
@@ -130,7 +130,7 @@ const overviewAccounts = computed(() => {
     variationLabel: bankStatusLabel(bank.status),
   }))
 })
-// As notificacoes sao derivadas dos dados atuais, sem estado duplicado manual.
+// As notificações são derivadas dos dados atuais, sem estado duplicado manual.
 const notifications = computed<NotificationItem[]>(() => {
   const bankAlerts = dashboardBankConnections.value
     .filter((bank) => bank.newTransactions > 0 || bank.status === 'Pendente')
@@ -237,7 +237,7 @@ function mapRemoteTransaction(transaction: { id: string; title: string; amount: 
   const status = transaction.status === 'Confirmado' ? 'Confirmado' : 'Previsto'
   const lowerTitle = transaction.title.toLowerCase()
   let bank = 'Data Connect'
-  if (lowerTitle.includes('salario')) bank = 'Nubank'
+  if (lowerTitle.includes('salario') || lowerTitle.includes('salário')) bank = 'Nubank'
   else if (lowerTitle.includes('aluguel')) bank = 'Bradesco'
 
   const category = transaction.status === 'Confirmado' ? 'Sincronizado' : 'Previsto'
@@ -259,7 +259,7 @@ function mapRemoteTransaction(transaction: { id: string; title: string; amount: 
 }
 
 async function refreshTransactions() {
-  // Data Connect e opcional: se nao houver dados remotos, mantemos o modo demonstracao.
+  // Data Connect é opcional: se não houver dados remotos, mantemos o modo demonstração.
   if (!props.profile.id) {
     dashboardTransactions.value = [...mockTransactions]
     transactionsSource.value = 'mock'
@@ -296,7 +296,7 @@ async function toggleTransactionStatus(transactionId: string, nextStatus: Transa
   const previousStatus = target.status
   isUpdatingTransactionStatus.value = transactionId
   transactionUpdateFeedback.value = null
-  // Atualizacao otimista: a interface muda na hora e reverte se o backend falhar.
+  // Atualização otimista: a interface muda na hora e reverte se o backend falhar.
   target.status = nextStatus
 
   try {
@@ -304,14 +304,14 @@ async function toggleTransactionStatus(transactionId: string, nextStatus: Transa
     transactionUpdateFeedback.value = {
       id: transactionId,
       type: 'success',
-      message: nextStatus === 'Confirmado' ? 'Transacao confirmada no Data Connect.' : 'Status atualizado para previsto.',
+      message: nextStatus === 'Confirmado' ? 'Transação confirmada no Data Connect.' : 'Status atualizado para previsto.',
     }
   } catch {
     target.status = previousStatus
     transactionUpdateFeedback.value = {
       id: transactionId,
       type: 'error',
-      message: 'Nao foi possivel atualizar o status no Data Connect.',
+      message: 'Não foi possível atualizar o status no Data Connect.',
     }
   } finally {
     isUpdatingTransactionStatus.value = null
@@ -519,7 +519,7 @@ async function loadPluggyData(itemId: string) {
     pluggyPartialErrors.value = data.partialErrors ?? []
 
     if (!data.accounts.length && !data.transactions.length) {
-      connectMessage.value = 'Conexao Pluggy encontrada, mas os dados ainda nao foram sincronizados.'
+      connectMessage.value = 'Conexão Pluggy encontrada, mas os dados ainda não foram sincronizados.'
     } else if (data.partialErrors?.length) {
       connectMessage.value = 'Dados Pluggy carregados com avisos em algumas contas.'
     }

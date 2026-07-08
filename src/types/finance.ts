@@ -30,7 +30,7 @@ export interface BankConnection {
   color: string
   balance: number
   newTransactions: number
-  status: 'Sincronizado' | 'Pendente' | 'Sem novos lancamentos'
+  status: 'Sincronizado' | 'Pendente' | 'Sem novos lançamentos'
   mask: string
 }
 

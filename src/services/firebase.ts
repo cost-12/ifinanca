@@ -128,10 +128,10 @@ function createAppCheckError(code: string, message: string) {
 
 async function fetchAppCheckToken(timeoutMs: number) {
   if (!appCheck) {
-    throw createAppCheckError('app-check/not-initialized', 'App Check nao inicializado.')
+    throw createAppCheckError('app-check/not-initialized', 'App Check não inicializado.')
   }
 
-  // getToken pode ficar pendente quando a configuracao externa falha; o timeout melhora o feedback.
+  // getToken pode ficar pendente quando a configuração externa falha; o timeout melhora o feedback.
   return new Promise<Awaited<ReturnType<typeof getToken>>>((resolve, reject) => {
     const timeoutId = window.setTimeout(() => {
       reject(createAppCheckError('app-check/timeout', 'Tempo esgotado ao obter token do App Check.'))
@@ -182,7 +182,7 @@ export async function ensureAppCheckReady(options?: { timeoutMs?: number; retrie
   const retries = options?.retries ?? APP_CHECK_MAX_RETRIES
   let lastError: unknown
 
-  // Pequenas retentativas cobrem latencia de rede sem mascarar erro 403 de configuracao.
+  // Pequenas retentativas cobrem latência de rede sem mascarar erro 403 de configuração.
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
       await fetchAppCheckToken(timeoutMs)
@@ -234,16 +234,16 @@ export function getAppCheckErrorMessage(language: AppLanguage = 'pt-BR'): string
   const messages: Record<AppLanguage, Record<string, string>> = {
     'pt-BR': {
       'app-check/not-initialized':
-        'App Check nao inicializou. Confira VITE_FIREBASE_APPCHECK_SITE_KEY e o dominio autorizado no reCAPTCHA Enterprise.',
+      'App Check não inicializou. Confira VITE_FIREBASE_APPCHECK_SITE_KEY e o domínio autorizado no reCAPTCHA Enterprise.',
       'app-check/timeout':
-        'A verificacao de seguranca demorou demais. Verifique se ifinanca.pages.dev esta registrado no reCAPTCHA Enterprise e tente novamente.',
+        'A verificação de segurança demorou demais. Verifique se ifinanca.pages.dev está registrado no reCAPTCHA Enterprise e tente novamente.',
       'appCheck/fetch-status-error':
-        'O App Check foi recusado pelo Firebase. Confira se a site key reCAPTCHA Enterprise esta vinculada ao app Web correto e se ifinanca.pages.dev esta autorizado.',
+        'O App Check foi recusado pelo Firebase. Confira se a site key reCAPTCHA Enterprise está vinculada ao app Web correto e se ifinanca.pages.dev está autorizado.',
       'appCheck/initial-throttle':
-        'O App Check foi recusado e entrou em pausa temporaria. Corrija a configuracao no Firebase/reCAPTCHA Enterprise e teste em uma janela anonima.',
+        'O App Check foi recusado e entrou em pausa temporária. Corrija a configuração no Firebase/reCAPTCHA Enterprise e teste em uma janela anônima.',
       'appCheck/throttled':
-        'O App Check esta temporariamente bloqueado apos erro 403. Corrija a configuracao e teste em uma janela anonima ou limpe os dados do site.',
-      'app-check/unknown': 'Nao foi possivel concluir a verificacao de seguranca. Tente novamente em instantes.',
+        'O App Check está temporariamente bloqueado após erro 403. Corrija a configuração e teste em uma janela anônima ou limpe os dados do site.',
+      'app-check/unknown': 'Não foi possível concluir a verificação de segurança. Tente novamente em instantes.',
     },
     'en-US': {
       'app-check/not-initialized':
@@ -260,22 +260,22 @@ export function getAppCheckErrorMessage(language: AppLanguage = 'pt-BR'): string
     },
     'es-ES': {
       'app-check/not-initialized':
-        'App Check no se inicializo. Revisa VITE_FIREBASE_APPCHECK_SITE_KEY y el dominio autorizado en reCAPTCHA Enterprise.',
+        'App Check no se inicializó. Revisa VITE_FIREBASE_APPCHECK_SITE_KEY y el dominio autorizado en reCAPTCHA Enterprise.',
       'app-check/timeout':
-        'La verificacion de seguridad tardo demasiado. Confirma que ifinanca.pages.dev este registrado en reCAPTCHA Enterprise e intentalo de nuevo.',
+        'La verificación de seguridad tardó demasiado. Confirma que ifinanca.pages.dev esté registrado en reCAPTCHA Enterprise e inténtalo de nuevo.',
       'appCheck/fetch-status-error':
-        'App Check fue rechazado por Firebase. Confirma que la site key reCAPTCHA Enterprise este vinculada a la app Web correcta y que ifinanca.pages.dev este autorizado.',
+        'App Check fue rechazado por Firebase. Confirma que la site key reCAPTCHA Enterprise esté vinculada a la app Web correcta y que ifinanca.pages.dev esté autorizado.',
       'appCheck/initial-throttle':
-        'App Check fue rechazado y entro en pausa temporal. Corrige Firebase/reCAPTCHA Enterprise y prueba en una ventana privada.',
+        'App Check fue rechazado y entró en pausa temporal. Corrige Firebase/reCAPTCHA Enterprise y prueba en una ventana privada.',
       'appCheck/throttled':
-        'App Check esta temporalmente bloqueado despues de un error 403. Corrige la configuracion y prueba en una ventana privada o limpia los datos del sitio.',
-      'app-check/unknown': 'No fue posible completar la verificacion de seguridad. Intentalo de nuevo en unos instantes.',
+        'App Check está temporalmente bloqueado después de un error 403. Corrige la configuración y prueba en una ventana privada o limpia los datos del sitio.',
+      'app-check/unknown': 'No fue posible completar la verificación de seguridad. Inténtalo de nuevo en unos instantes.',
     },
   }
 
   const code = appCheckLastErrorCode || 'app-check/unknown'
   const DEFAULT_MESSAGE =
-    'Nao foi possivel concluir a verificacao de seguranca. Tente novamente em instantes.'
+    'Não foi possível concluir a verificação de segurança. Tente novamente em instantes.'
 
   return (
     messages[language]?.[code] ||
@@ -287,7 +287,7 @@ export function getAppCheckErrorMessage(language: AppLanguage = 'pt-BR'): string
 
 function getFirebaseServices() {
   if (!isFirebaseConfigured) {
-    throw new Error('Firebase nao configurado.')
+    throw new Error('Firebase não configurado.')
   }
 
   if (!app) {
@@ -419,7 +419,7 @@ export async function loginWithEmailProfile(input: LoginInput) {
   if (!credential.user.emailVerified) {
     await sendEmailVerification(credential.user)
     await signOut(auth)
-    throw createAuthFlowError('auth/email-not-verified', 'E-mail ainda nao verificado.')
+    throw createAuthFlowError('auth/email-not-verified', 'E-mail ainda não verificado.')
   }
 
   return getCurrentUserProfile(credential.user)
@@ -438,7 +438,7 @@ export async function signInWithGoogleProfile(input?: Partial<RegisterProfileInp
 
   if (!credential.user.emailVerified) {
     await signOut(auth)
-    throw createAuthFlowError('auth/email-not-verified', 'E-mail ainda nao verificado.')
+    throw createAuthFlowError('auth/email-not-verified', 'E-mail ainda não verificado.')
   }
 
   const { db } = getFirebaseServices()
@@ -469,7 +469,7 @@ export async function updateUserProfileDocument(profile: UserProfile) {
   const { auth, db } = getFirebaseServices()
 
   if (!auth.currentUser || auth.currentUser.uid !== profile.id) {
-    throw new Error('Usuario nao autenticado.')
+    throw new Error('Usuário não autenticado.')
   }
 
   const nextName = normalizeName(profile.name)
@@ -493,22 +493,22 @@ export function getFirebaseAuthErrorMessage(error: unknown, language: AppLanguag
 
   const messages: Record<AppLanguage, Record<string, string>> = {
     'pt-BR': {
-      'auth/email-already-in-use': 'Este e-mail ja possui uma conta.',
-      'auth/email-not-verified': 'Confirme seu e-mail antes de entrar. Enviamos um novo link de verificacao.',
-      'auth/invalid-credential': 'E-mail ou senha invalidos.',
-      'auth/invalid-email': 'Informe um e-mail valido.',
+      'auth/email-already-in-use': 'Este e-mail já possui uma conta.',
+      'auth/email-not-verified': 'Confirme seu e-mail antes de entrar. Enviamos um novo link de verificação.',
+      'auth/invalid-credential': 'E-mail ou senha inválidos.',
+      'auth/invalid-email': 'Informe um e-mail válido.',
       'auth/missing-password': 'Informe sua senha.',
-      'auth/network-request-failed': 'Falha de rede. Verifique sua conexao.',
+      'auth/network-request-failed': 'Falha de rede. Verifique sua conexão.',
       'auth/operation-not-allowed': 'Habilite o provedor Email/Senha ou Google no Firebase Authentication.',
-      'auth/account-exists-with-different-credential': 'Este e-mail ja esta cadastrado com outro metodo de acesso.',
+      'auth/account-exists-with-different-credential': 'Este e-mail já está cadastrado com outro método de acesso.',
       'auth/cancelled-popup-request': 'A janela do Google foi cancelada.',
       'auth/popup-blocked': 'O navegador bloqueou a janela do Google. Permita pop-ups para continuar.',
       'auth/popup-closed-by-user': 'A janela do Google foi fechada antes de concluir.',
       'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos.',
-      'auth/unauthorized-domain': 'Adicione este dominio nos dominios autorizados do Firebase Authentication.',
-      'auth/user-not-found': 'Conta nao encontrada.',
+      'auth/unauthorized-domain': 'Adicione este domínio nos domínios autorizados do Firebase Authentication.',
+      'auth/user-not-found': 'Conta não encontrada.',
       'auth/weak-password': 'Use uma senha com pelo menos 6 caracteres.',
-      'auth/wrong-password': 'E-mail ou senha invalidos.',
+      'auth/wrong-password': 'E-mail ou senha inválidos.',
     },
     'en-US': {
       'auth/email-already-in-use': 'This email already has an account.',
@@ -529,28 +529,28 @@ export function getFirebaseAuthErrorMessage(error: unknown, language: AppLanguag
       'auth/wrong-password': 'Invalid email or password.',
     },
     'es-ES': {
-      'auth/email-already-in-use': 'Este email ya tiene una cuenta.',
-      'auth/email-not-verified': 'Confirma tu email antes de entrar. Enviamos un nuevo enlace de verificacion.',
-      'auth/invalid-credential': 'Email o contrasena invalidos.',
-      'auth/invalid-email': 'Ingresa un email valido.',
-      'auth/missing-password': 'Ingresa tu contrasena.',
-      'auth/network-request-failed': 'Error de red. Verifica tu conexion.',
-      'auth/operation-not-allowed': 'Habilita Email/Contrasena o Google en Firebase Authentication.',
-      'auth/account-exists-with-different-credential': 'Este email ya esta registrado con otro metodo de acceso.',
+      'auth/email-already-in-use': 'Este correo electrónico ya tiene una cuenta.',
+      'auth/email-not-verified': 'Confirma tu correo electrónico antes de entrar. Enviamos un nuevo enlace de verificación.',
+      'auth/invalid-credential': 'Correo electrónico o contraseña inválidos.',
+      'auth/invalid-email': 'Ingresa un correo electrónico válido.',
+      'auth/missing-password': 'Ingresa tu contraseña.',
+      'auth/network-request-failed': 'Error de red. Verifica tu conexión.',
+      'auth/operation-not-allowed': 'Habilita Correo electrónico/Contraseña o Google en Firebase Authentication.',
+      'auth/account-exists-with-different-credential': 'Este correo electrónico ya está registrado con otro método de acceso.',
       'auth/cancelled-popup-request': 'La ventana de Google fue cancelada.',
-      'auth/popup-blocked': 'El navegador bloqueo la ventana de Google. Permite pop-ups para continuar.',
-      'auth/popup-closed-by-user': 'La ventana de Google se cerro antes de terminar.',
+      'auth/popup-blocked': 'El navegador bloqueó la ventana de Google. Permite pop-ups para continuar.',
+      'auth/popup-closed-by-user': 'La ventana de Google se cerró antes de terminar.',
       'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos.',
       'auth/unauthorized-domain': 'Agrega este dominio a los dominios autorizados de Firebase Authentication.',
       'auth/user-not-found': 'Cuenta no encontrada.',
-      'auth/weak-password': 'Usa una contrasena de al menos 6 caracteres.',
-      'auth/wrong-password': 'Email o contrasena invalidos.',
+      'auth/weak-password': 'Usa una contraseña de al menos 6 caracteres.',
+      'auth/wrong-password': 'Correo electrónico o contraseña inválidos.',
     },
   }
 
   return messages[language][code] || messages['pt-BR'][code] || {
-    'pt-BR': 'Nao foi possivel concluir a autenticacao agora.',
+    'pt-BR': 'Não foi possível concluir a autenticação agora.',
     'en-US': 'Could not complete authentication right now.',
-    'es-ES': 'No fue posible completar la autenticacion ahora.',
+    'es-ES': 'No fue posible completar la autenticación ahora.',
   }[language]
 }

@@ -36,7 +36,7 @@ const options = computed(() =>
   })),
 )
 const selectedOption = computed(() => options.value.find((option) => option.value === props.language) ?? options.value[0])
-const selectedLabel = computed(() => selectedOption.value?.label ?? 'Portugues')
+const selectedLabel = computed(() => selectedOption.value?.label ?? 'Português')
 const selectedFlagUrl = computed(() => selectedOption.value?.flagUrl ?? 'https://flagcdn.com/br.svg')
 
 function selectLanguage(language: AppLanguage) {

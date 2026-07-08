@@ -151,7 +151,7 @@ onMounted(() => {
   window.addEventListener('hashchange', syncPublicViewFromHash)
   window.addEventListener('popstate', syncPublicViewFromHash)
 
-  // Este listener decide se o usuario ve a area publica ou o dashboard.
+  // Este listener decide se o usuário vê a área pública ou o dashboard.
   unsubscribeAuth = observeAuthState(async (user) => {
     authMessage.value = ''
 
