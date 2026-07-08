@@ -31,9 +31,9 @@ const copy = {
     metricBanks: 'conexões bancárias',
     metricFlow: 'visão de fluxo',
     metricAccess: 'acesso seguro',
-    resourcesTitle: 'Uma home promocional para evoluir o iFinanca',
+    resourcesTitle: 'Controle financeiro claro e confiável',
     resourcesBody:
-      'A página inicial apresenta o produto antes do login e direciona o usuário para cadastro, acesso e seções informativas.',
+      'Dados organizados, acesso protegido e visual simples para acompanhar sua rotina financeira com mais segurança.',
     resourceOneTitle: 'Organização visual',
     resourceOneBody:
       'O usuário entende rapidamente saldo, entradas, saídas e movimentações sem depender de planilhas espalhadas.',
@@ -45,13 +45,13 @@ const copy = {
       'Metas financeiras, renda mensal e ativos ajudam a planejar reserva de emergência e objetivos futuros.',
     educationTitle: 'Educação financeira aplicada ao dia a dia',
     educationBody:
-      'O conceito da página original foi incorporado como uma camada de apresentação: primeiro o usuário entende os pilares financeiros, depois acessa o ambiente autenticado.',
+      'Indicadores claros ajudam a entender entradas, saídas e metas sem expor informações sensíveis fora do ambiente protegido.',
     educationOne: 'Controle entradas e saídas com frequência.',
     educationTwo: 'Use o fluxo mensal para antecipar decisões.',
     educationThree: 'Conecte contas para reduzir trabalho manual.',
-    securityTitle: 'Do convite ao login seguro',
+    securityTitle: 'Segurança aplicada ao acesso',
     securityBody:
-      'Os botões da home levam ao fluxo real do Firebase Authentication, mantendo verificação de e-mail, Google login, App Check e credenciais sensíveis no servidor.',
+      'Autenticação com Firebase, verificação de e-mail, login Google, App Check e credenciais sensíveis mantidas no servidor.',
     securityCta: 'Criar conta segura',
   },
   'en-US': {
@@ -68,9 +68,9 @@ const copy = {
     metricBanks: 'bank connections',
     metricFlow: 'cash-flow view',
     metricAccess: 'secure access',
-    resourcesTitle: 'A promotional home for the next iFinanca step',
+    resourcesTitle: 'Clear and reliable financial control',
     resourcesBody:
-      'The initial page presents the product before login and routes users to sign-up, access and informational sections.',
+      'Organized data, protected access and a simple view for tracking your financial routine with more confidence.',
     resourceOneTitle: 'Visual organization',
     resourceOneBody: 'Users quickly understand balance, income, expenses and movements without scattered spreadsheets.',
     resourceTwoTitle: 'Spending awareness',
@@ -79,13 +79,13 @@ const copy = {
     resourceThreeBody: 'Financial goals, monthly income and assets help plan emergency reserves and future objectives.',
     educationTitle: 'Financial education for daily decisions',
     educationBody:
-      'The original page concept now works as a presentation layer: users first understand the pillars, then enter the authenticated product.',
+      'Clear indicators help users understand income, expenses and goals without exposing sensitive information outside the protected area.',
     educationOne: 'Track income and expenses often.',
     educationTwo: 'Use monthly flow to anticipate decisions.',
     educationThree: 'Connect accounts to reduce manual work.',
-    securityTitle: 'From invitation to secure login',
+    securityTitle: 'Security applied to account access',
     securityBody:
-      'Home buttons lead to the real Firebase Authentication flow, keeping email verification, Google login, App Check and server-side credentials.',
+      'Firebase authentication, email verification, Google login, App Check and sensitive credentials kept on the server.',
     securityCta: 'Create secure account',
   },
   'es-ES': {
@@ -102,9 +102,9 @@ const copy = {
     metricBanks: 'conexiones bancarias',
     metricFlow: 'vista de flujo',
     metricAccess: 'acceso seguro',
-    resourcesTitle: 'Una página promocional para evolucionar iFinanca',
+    resourcesTitle: 'Control financiero claro y confiable',
     resourcesBody:
-      'La página inicial presenta el producto antes del login y dirige al usuario a registro, acceso y secciones informativas.',
+      'Datos organizados, acceso protegido y una vista simple para seguir tu rutina financiera con más seguridad.',
     resourceOneTitle: 'Organización visual',
     resourceOneBody:
       'El usuario entiende rápidamente saldo, ingresos, salidas y movimientos sin depender de hojas dispersas.',
@@ -116,13 +116,13 @@ const copy = {
       'Metas financieras, ingreso mensual y activos ayudan a planear reservas de emergencia y objetivos futuros.',
     educationTitle: 'Educación financiera aplicada al día a día',
     educationBody:
-      'El concepto de la página original fue incorporado como capa de presentación: primero se entienden los pilares y luego se accede al ambiente autenticado.',
+      'Indicadores claros ayudan a entender ingresos, salidas y metas sin exponer información sensible fuera del área protegida.',
     educationOne: 'Controla ingresos y salidas con frecuencia.',
     educationTwo: 'Usa el flujo mensual para anticipar decisiones.',
     educationThree: 'Conecta cuentas para reducir trabajo manual.',
-    securityTitle: 'De la invitación al login seguro',
+    securityTitle: 'Seguridad aplicada al acceso',
     securityBody:
-      'Los botones de la página inicial llevan al flujo real de Firebase Authentication, manteniendo verificación de correo electrónico, Google login, App Check y credenciales en servidor.',
+      'Autenticación con Firebase, verificación de correo electrónico, login con Google, App Check y credenciales sensibles mantenidas en servidor.',
     securityCta: 'Crear cuenta segura',
   },
 } satisfies Record<AppLanguage, Record<string, string>>
