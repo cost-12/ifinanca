@@ -266,14 +266,14 @@ watch(
 
 <template>
   <main :data-theme="theme === 'dark' ? 'business' : 'emerald'" class="ifinanca-app min-h-screen">
-    <section v-if="!authReady" class="grid min-h-screen place-items-center bg-[#07080d] px-4 text-white">
-      <div class="text-center">
-        <div class="mb-6 inline-flex items-center gap-3">
-          <BrandLogo class="size-11 shrink-0 rounded-xl shadow-lg shadow-black/30" variant="favicon" />
-          <span class="text-2xl font-black tracking-normal">iFinanca</span>
+    <section v-if="!authReady" class="flex min-h-dvh items-center justify-center bg-[#07080d] px-4 py-10 text-white">
+      <div class="flex w-full max-w-xs flex-col items-center text-center" role="status" aria-live="polite">
+        <div class="flex max-w-full items-center justify-center gap-3">
+          <BrandLogo class="size-10 shrink-0 rounded-xl shadow-lg shadow-black/30 sm:size-11" variant="favicon" />
+          <span class="min-w-0 text-2xl font-black leading-none tracking-normal sm:text-3xl">iFinanca</span>
         </div>
-        <span class="loading loading-spinner loading-lg text-[#17c964]"></span>
-        <p class="mt-4 text-sm font-bold text-zinc-400">{{ translate(language, 'auth.checkingSession') }}</p>
+        <span class="loading loading-spinner loading-lg mt-7 block text-[#17c964]"></span>
+        <p class="mt-4 max-w-full text-sm font-bold leading-6 text-zinc-400">{{ translate(language, 'auth.checkingSession') }}</p>
       </div>
     </section>
 
