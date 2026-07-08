@@ -130,6 +130,18 @@ Se a tela mostrar "Nao foi possivel concluir a verificacao de seguranca" em `htt
 @firebase/app-check: Requests throttled due to previous 403 error
 ```
 
+e o corpo da resposta vier como:
+
+```json
+{
+  "error": {
+    "code": 403,
+    "message": "App attestation failed.",
+    "status": "PERMISSION_DENIED"
+  }
+}
+```
+
 o problema nao e o caminho `/login`. As rotas publicas `/login` e `/cadastro` sao servidas pelo fallback SPA do Cloudflare Pages. O que precisa estar correto e a combinacao entre:
 
 - dominio/origem: `ifinanca.pages.dev`;
@@ -138,13 +150,23 @@ o problema nao e o caminho `/login`. As rotas publicas `/login` e `/cadastro` sa
 - site key reCAPTCHA Enterprise configurada em `VITE_FIREBASE_APPCHECK_SITE_KEY`;
 - dominios permitidos na chave reCAPTCHA Enterprise.
 
+Importante: no DevTools aparecem duas chaves diferentes:
+
+- `k=...` em chamadas como `google.com/recaptcha/enterprise/anchor` e `reload`: esta e a site key do reCAPTCHA Enterprise (`VITE_FIREBASE_APPCHECK_SITE_KEY`).
+- `?key=AIza...` em `content-firebaseappcheck.googleapis.com`: esta e a Firebase Web API Key (`VITE_FIREBASE_API_KEY`), nao a chave do reCAPTCHA.
+
+Atualizar o cliente OAuth em Google Cloud > Credentials ajuda o Google Sign-In, mas nao corrige `exchangeRecaptchaEnterpriseToken`. Esse erro acontece antes do popup do Google, durante a atestacao do App Check.
+
 Passos recomendados:
 
 1. No Firebase Console, abra **App Check > Apps** e selecione exatamente o app Web usado por `VITE_FIREBASE_APP_ID`.
 2. Confirme que o provider e **reCAPTCHA Enterprise** e que a site key e a mesma publicada como `VITE_FIREBASE_APPCHECK_SITE_KEY` no Cloudflare Pages.
 3. No Google Cloud / reCAPTCHA Enterprise, abra essa mesma chave e adicione `ifinanca.pages.dev` aos dominios permitidos.
 4. No Firebase Authentication, em **Settings > Authorized domains**, confirme `ifinanca.pages.dev`.
-5. Depois de um 403, o SDK pode aplicar throttle por ate 24h no navegador. Apos corrigir a configuracao, teste em uma janela anonima ou limpe os dados do site.
+5. No Firebase App Check, confira o **limiar de risco** do app Web. Para teste, reduza temporariamente para 0.3 ou 0.1 e monitore a distribuicao de score no Google Cloud > reCAPTCHA Enterprise.
+6. Em Google Cloud > APIs & Services > Credentials, confira se a Firebase Web API Key (`VITE_FIREBASE_API_KEY`) permite o referer `https://ifinanca.pages.dev/*` e as APIs Firebase usadas pelo app.
+7. Teste tambem em uma janela normal sem bloqueadores de rastreamento/adblock. Navegacao privada e bloqueadores podem baixar o score do reCAPTCHA Enterprise e gerar `App attestation failed`.
+8. Depois de um 403, o SDK pode aplicar throttle por ate 24h no navegador. Apos corrigir a configuracao, teste em uma nova janela anonima, outro navegador ou limpe os dados do site.
 
 ### Correção temporária para liberar login
 
