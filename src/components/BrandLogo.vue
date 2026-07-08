@@ -7,7 +7,7 @@ import logoWordmark from '@/assets/brand/ifinanca-logo-wide.png'
 const props = withDefaults(
   defineProps<{
     alt?: string
-    variant?: 'full' | 'mark' | 'wordmark'
+    variant?: 'favicon' | 'full' | 'mark' | 'wordmark'
   }>(),
   {
     alt: 'iFinanca',
@@ -16,6 +16,7 @@ const props = withDefaults(
 )
 
 const source = computed(() => {
+  if (props.variant === 'favicon') return '/favicon-192x192.png?v=2'
   if (props.variant === 'full') return logoFull
   if (props.variant === 'mark') return logoMark
   return logoWordmark
@@ -23,5 +24,5 @@ const source = computed(() => {
 </script>
 
 <template>
-  <img :alt="alt" class="select-none rounded-md object-contain" draggable="false" :src="source" />
+  <img :alt="alt" class="select-none rounded-xl object-contain" draggable="false" :src="source" />
 </template>

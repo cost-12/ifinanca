@@ -227,8 +227,9 @@ async function continueWithGoogle() {
 <template>
   <section class="min-h-screen overflow-hidden bg-[#07080d]">
     <header class="mx-auto flex h-16 w-full max-w-370 items-center justify-between px-4 sm:h-20 sm:px-6 lg:px-8">
-      <button class="text-left text-xl font-black tracking-normal text-white" type="button" @click="emit('backHome')">
-        iFinanca
+      <button class="inline-flex items-center gap-2 text-left text-xl font-black tracking-normal text-white" type="button" @click="emit('backHome')">
+        <BrandLogo class="size-9 shrink-0 rounded-xl shadow-sm shadow-black/30" variant="favicon" />
+        <span>iFinanca</span>
       </button>
       <div class="flex items-center gap-2 text-sm text-zinc-400">
         <div class="hidden items-center gap-3 sm:flex">
@@ -253,7 +254,6 @@ async function continueWithGoogle() {
     <div class="mx-auto grid min-h-[calc(100vh-64px)] max-w-370 grid-cols-1 gap-8 px-4 pb-10 sm:min-h-[calc(100vh-80px)] sm:px-6 lg:grid-cols-[1fr_minmax(390px,440px)] lg:items-center lg:gap-12 lg:px-8 2xl:grid-cols-[1fr_460px]">
       <div class="order-2 grid gap-8 lg:order-1 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center xl:grid-cols-[minmax(0,1fr)_390px]">
         <div class="max-w-2xl">
-          <BrandLogo class="mb-6 h-28 w-28 shadow-2xl shadow-black/30 sm:h-32 sm:w-32" variant="full" />
           <div class="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-[#21312a] bg-[#101a16] px-4 py-2 text-sm font-semibold text-[#76eaa2]">
             <ShieldCheck :size="17" />
             <span class="min-w-0">{{ tr('hero.badge') }}</span>

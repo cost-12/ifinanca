@@ -208,7 +208,10 @@ watch(
   <main :data-theme="theme === 'dark' ? 'business' : 'emerald'" class="ifinanca-app min-h-screen">
     <section v-if="!authReady" class="grid min-h-screen place-items-center bg-[#07080d] px-4 text-white">
       <div class="text-center">
-        <BrandLogo class="mx-auto mb-6 h-32 w-32 shadow-2xl shadow-black/30" variant="full" />
+        <div class="mb-6 inline-flex items-center gap-3">
+          <BrandLogo class="size-11 shrink-0 rounded-xl shadow-lg shadow-black/30" variant="favicon" />
+          <span class="text-2xl font-black tracking-normal">iFinanca</span>
+        </div>
         <span class="loading loading-spinner loading-lg text-[#17c964]"></span>
         <p class="mt-4 text-sm font-bold text-zinc-400">{{ translate(language, 'auth.checkingSession') }}</p>
       </div>

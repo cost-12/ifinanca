@@ -142,8 +142,9 @@ function openAccess(mode: AccessMode) {
   <section class="min-h-screen bg-[#f7faf8] text-[#172019]">
     <header class="sticky top-0 z-50 border-b border-[#dce7df] bg-white/95 backdrop-blur">
       <div class="mx-auto flex h-16 w-full max-w-370 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <a class="text-xl font-black tracking-normal" href="#inicio" aria-label="iFinanca">
-          iFinanca
+        <a class="inline-flex items-center gap-2 text-xl font-black tracking-normal" href="#inicio" aria-label="iFinanca">
+          <BrandLogo class="size-9 shrink-0 rounded-xl shadow-sm" variant="favicon" />
+          <span>iFinanca</span>
         </a>
 
         <nav class="hidden items-center gap-6 text-sm font-bold text-[#54645a] md:flex">
@@ -189,7 +190,6 @@ function openAccess(mode: AccessMode) {
         <div class="absolute inset-0 -z-10 bg-black/62"></div>
         <div class="mx-auto flex min-h-[calc(74vh-8rem)] max-w-370 items-center">
           <div class="max-w-3xl">
-            <BrandLogo class="mb-6 h-28 w-28 shadow-2xl shadow-black/30 sm:h-32 sm:w-32" variant="full" />
             <div class="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-white/25 bg-white/12 px-4 py-2 text-sm font-bold text-white backdrop-blur">
               <MaterialIcon fill name="savings" :size="17" />
               <span class="min-w-0">{{ text.heroBadge }}</span>

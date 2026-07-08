@@ -637,8 +637,9 @@ watch(
   <section class="dashboard-shell min-h-screen" :data-mode="theme">
     <header class="dashboard-header sticky top-0 z-40 border-b backdrop-blur">
       <div class="mx-auto flex h-17 max-w-370 items-center justify-between px-4 sm:px-6 lg:px-8">
-        <div class="text-xl font-black tracking-normal">
-          iFinanca
+        <div class="inline-flex items-center gap-2 text-xl font-black tracking-normal">
+          <BrandLogo class="size-9 shrink-0 rounded-xl shadow-sm shadow-black/30" variant="favicon" />
+          <span>iFinanca</span>
         </div>
 
         <nav class="hidden items-center gap-2 md:flex">
