@@ -22,6 +22,11 @@ const LANGUAGE_STORAGE_KEY = 'ifinanca.language'
 type AccessMode = 'login' | 'register'
 type PublicView = 'home' | 'access'
 
+const accessRoutes: Record<AccessMode, string> = {
+  login: '/login',
+  register: '/cadastro',
+}
+
 function readStoredTheme(): AppTheme {
   if (typeof window === 'undefined') {
     return 'dark'
@@ -50,52 +55,75 @@ const authMessage = ref('')
 const accessMode = ref<AccessMode>('register')
 const publicView = ref<PublicView>('home')
 
-function syncPublicViewFromHash() {
+function normalizePathname(pathname: string) {
+  const normalized = pathname.replace(/\/+$/, '')
+  return normalized || '/'
+}
+
+function replacePath(pathname: string) {
   if (typeof window === 'undefined') {
     return
   }
 
-  // Usa hashes simples para abrir login/cadastro sem adicionar Vue Router.
-  const hash = window.location.hash.toLowerCase()
+  window.history.replaceState(null, '', pathname)
+}
 
+function pushPath(pathname: string) {
+  if (typeof window === 'undefined' || normalizePathname(window.location.pathname) === pathname) {
+    return
+  }
+
+  window.history.pushState(null, '', pathname)
+}
+
+function syncPublicViewFromLocation() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  // Mantém compatibilidade com links antigos e já troca a URL para rota limpa.
+  const hash = window.location.hash.toLowerCase()
   if (hash === '#login' || hash === '#entrar') {
     accessMode.value = 'login'
     publicView.value = 'access'
+    replacePath(accessRoutes.login)
     return
   }
 
   if (hash === '#cadastro' || hash === '#criar-conta') {
     accessMode.value = 'register'
     publicView.value = 'access'
+    replacePath(accessRoutes.register)
+    return
+  }
+
+  const pathname = normalizePathname(window.location.pathname)
+  if (pathname === '/login' || pathname === '/entrar') {
+    accessMode.value = 'login'
+    publicView.value = 'access'
+    if (pathname !== accessRoutes.login) replacePath(accessRoutes.login)
+    return
+  }
+
+  if (pathname === '/cadastro' || pathname === '/criar-conta') {
+    accessMode.value = 'register'
+    publicView.value = 'access'
+    if (pathname !== accessRoutes.register) replacePath(accessRoutes.register)
     return
   }
 
   publicView.value = 'home'
-}
-
-function replaceHash(hash: string) {
-  if (typeof window === 'undefined' || window.location.hash === hash) {
-    return
-  }
-
-  window.history.pushState(null, '', hash)
 }
 
 function openAccess(nextMode: AccessMode) {
   accessMode.value = nextMode
   publicView.value = 'access'
-  replaceHash(nextMode === 'login' ? '#login' : '#cadastro')
+  pushPath(accessRoutes[nextMode])
 }
 
 function openMarketingHome() {
   publicView.value = 'home'
-
-  if (
-    typeof window !== 'undefined' &&
-    ['#login', '#entrar', '#cadastro', '#criar-conta'].includes(window.location.hash.toLowerCase())
-  ) {
-    window.history.pushState(null, '', `${window.location.pathname}${window.location.search}`)
-  }
+  pushPath('/')
 }
 
 function persistProfile(nextProfile: UserProfile) {
@@ -147,9 +175,8 @@ async function handleLogout() {
 }
 
 onMounted(() => {
-  syncPublicViewFromHash()
-  window.addEventListener('hashchange', syncPublicViewFromHash)
-  window.addEventListener('popstate', syncPublicViewFromHash)
+  syncPublicViewFromLocation()
+  window.addEventListener('popstate', syncPublicViewFromLocation)
 
   // Este listener decide se o usuário vê a área pública ou o dashboard.
   unsubscribeAuth = observeAuthState(async (user) => {
@@ -186,8 +213,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('hashchange', syncPublicViewFromHash)
-  window.removeEventListener('popstate', syncPublicViewFromHash)
+  window.removeEventListener('popstate', syncPublicViewFromLocation)
   unsubscribeAuth?.()
 })
 

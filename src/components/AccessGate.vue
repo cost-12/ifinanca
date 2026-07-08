@@ -97,7 +97,7 @@ function setAuthMode(nextMode: 'login' | 'register') {
 watch(
   () => props.initialMode,
   (nextMode) => {
-    // A home muda o hash; o App repassa o modo correto para este componente.
+    // A home muda a rota; o App repassa o modo correto para este componente.
     if (!nextMode || nextMode === authMode.value) {
       return
     }

@@ -173,11 +173,11 @@ O sinal `@` escuta eventos:
 
 `MarketingHome.vue` apresenta o produto e direciona para:
 
-- `#login`
-- `#cadastro`
+- `/login`
+- `/cadastro`
 - secoes informativas da propria pagina
 
-O projeto usa hash simples em vez de Vue Router porque o fluxo publico ainda e pequeno.
+O projeto usa rotas limpas com `history.pushState` e fallback SPA do Cloudflare Pages (`public/_redirects`). Links antigos com `#login` e `#cadastro` ainda sao normalizados automaticamente para `/login` e `/cadastro`.
 
 ### 3. Login e cadastro
 

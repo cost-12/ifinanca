@@ -122,7 +122,7 @@ Mantido para compatibilidade, mas nao e mais usado pelo fluxo principal de login
 
 ## Erro 403 no `exchangeRecaptchaEnterpriseToken`
 
-Se a tela mostrar "Nao foi possivel concluir a verificacao de seguranca" em `https://ifinanca.pages.dev/#login` e o console do navegador exibir algo como:
+Se a tela mostrar "Nao foi possivel concluir a verificacao de seguranca" em `https://ifinanca.pages.dev/login` e o console do navegador exibir algo como:
 
 ```txt
 403 content-firebaseappcheck.googleapis.com/.../exchangeRecaptchaEnterpriseToken
@@ -130,7 +130,7 @@ Se a tela mostrar "Nao foi possivel concluir a verificacao de seguranca" em `htt
 @firebase/app-check: Requests throttled due to previous 403 error
 ```
 
-o problema nao e o caminho `/#login`. Hashes como `#login` e `#cadastro` nao entram na autorizacao do Firebase. O que precisa estar correto e a combinacao entre:
+o problema nao e o caminho `/login`. As rotas publicas `/login` e `/cadastro` sao servidas pelo fallback SPA do Cloudflare Pages. O que precisa estar correto e a combinacao entre:
 
 - dominio/origem: `ifinanca.pages.dev`;
 - app Web Firebase: o app id configurado em `VITE_FIREBASE_APP_ID`;
