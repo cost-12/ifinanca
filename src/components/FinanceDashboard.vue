@@ -10,6 +10,7 @@ import {
   CreditCard,
   Eye,
   EyeOff,
+  ExternalLink,
   Home,
   Landmark,
   Link2,
@@ -509,6 +510,14 @@ function toggleProfileMenu() {
   avatarMessage.value = ''
 }
 
+function openProjectSite() {
+  profileMenuOpen.value = false
+
+  if (typeof window !== 'undefined') {
+    window.open(window.location.origin, '_blank', 'noopener,noreferrer')
+  }
+}
+
 function setTheme(nextTheme: AppTheme) {
   emit('themeChange', nextTheme)
 }
@@ -590,8 +599,7 @@ async function handleAvatarSelected(event: Event) {
 }
 
 function removeAvatar() {
-  const nextProfile: UserProfile = { ...props.profile }
-  delete nextProfile.avatarUrl
+  const nextProfile: UserProfile = { ...props.profile, avatarUrl: '' }
   emit('profileUpdated', nextProfile)
   avatarMessage.value = tr('profile.photoRemoved')
   avatarError.value = ''
@@ -875,7 +883,7 @@ watch(activeTab, (nextTab) => {
               :aria-label="tr('profile.openMenu')"
               @click="toggleProfileMenu"
             >
-              <img v-if="profile.avatarUrl" class="h-full w-full object-cover" :src="profile.avatarUrl" alt="" />
+              <img v-if="profile.avatarUrl" class="h-full w-full object-cover" decoding="async" referrerpolicy="no-referrer" :src="profile.avatarUrl" alt="" />
               <span v-else class="grid size-full place-items-center leading-none">{{ firstName.slice(0, 1).toUpperCase() }}</span>
             </button>
 
@@ -884,11 +892,11 @@ watch(activeTab, (nextTab) => {
 
             <div
               v-if="profileMenuOpen"
-              class="dashboard-popover absolute right-0 top-11 z-50 w-[min(92vw,300px)] rounded-lg border p-4 shadow-2xl"
+              class="dashboard-popover absolute right-0 top-11 z-50 w-[min(92vw,320px)] rounded-lg border p-4 shadow-2xl"
             >
               <div class="flex items-center gap-3">
                 <div class="grid size-12 overflow-hidden rounded-full bg-[#17c964] text-base font-black text-[#06130a]">
-                  <img v-if="profile.avatarUrl" class="h-full w-full object-cover" :src="profile.avatarUrl" alt="" />
+                  <img v-if="profile.avatarUrl" class="h-full w-full object-cover" decoding="async" referrerpolicy="no-referrer" :src="profile.avatarUrl" alt="" />
                   <span v-else class="grid place-items-center">{{ firstName.slice(0, 1).toUpperCase() }}</span>
                 </div>
                 <div class="min-w-0">
@@ -897,7 +905,20 @@ watch(activeTab, (nextTab) => {
                 </div>
               </div>
 
-              <div class="mt-4 grid gap-2">
+              <div class="divider my-3"></div>
+
+              <div class="grid gap-2">
+                <button class="btn btn-sm justify-start border-white/10 bg-transparent text-zinc-300 hover:bg-white/10" type="button" @click="openProjectSite">
+                  <ExternalLink :size="16" />
+                  {{ tr('profile.goToSite') }}
+                </button>
+                <button class="btn btn-sm justify-start border-white/10 bg-transparent text-zinc-300 hover:bg-white/10" type="button" @click="emit('logout')">
+                  <LogOut :size="16" />
+                  {{ tr('common.logout') }}
+                </button>
+
+                <div class="divider my-1"></div>
+
                 <button class="btn btn-sm justify-start border-0 bg-[#17c964] text-[#06130a] hover:bg-[#13b45a]" type="button" @click="openAvatarPicker">
                   <Camera :size="16" />
                   {{ tr('profile.changePhoto') }}
@@ -905,10 +926,6 @@ watch(activeTab, (nextTab) => {
                 <button class="btn btn-sm justify-start border-white/10 bg-transparent text-zinc-300 hover:bg-white/10" type="button" @click="removeAvatar">
                   <Trash2 :size="16" />
                   {{ tr('profile.removePhoto') }}
-                </button>
-                <button class="btn btn-sm justify-start border-white/10 bg-transparent text-zinc-300 hover:bg-white/10 sm:hidden" type="button" @click="emit('logout')">
-                  <LogOut :size="16" />
-                  {{ tr('common.logout') }}
                 </button>
               </div>
 

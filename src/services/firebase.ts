@@ -328,24 +328,38 @@ function resolveGoal(goal: unknown): AccessGoal {
   return typeof goal === 'string' && validGoals.has(goal as AccessGoal) ? (goal as AccessGoal) : defaultGoal
 }
 
+function resolveGooglePhotoUrl(user: User) {
+  return typeof user.photoURL === 'string' && user.photoURL.trim() ? user.photoURL.trim() : ''
+}
+
+function hasOwnProfileField(data: FirestoreProfileData, field: keyof UserProfile) {
+  return Object.prototype.hasOwnProperty.call(data, field)
+}
+
 function createAuthFlowError(code: string, message: string) {
   return Object.assign(new Error(message), { code })
 }
 
 function profileFromUser(user: User, data: FirestoreProfileData = {}): UserProfile {
-  return {
+  const profile: UserProfile = {
     id: user.uid,
     name: normalizeName(data.name || user.displayName || 'Usuario iFinanca'),
     email: normalizeEmail(data.email || user.email || ''),
     goal: resolveGoal(data.goal),
     monthlyIncome: typeof data.monthlyIncome === 'number' ? data.monthlyIncome : 0,
     createdAt: dateToIso(data.createdAt),
-    avatarUrl: typeof data.avatarUrl === 'string' ? data.avatarUrl : undefined,
   }
+
+  if (hasOwnProfileField(data, 'avatarUrl') && typeof data.avatarUrl === 'string') {
+    profile.avatarUrl = data.avatarUrl
+  }
+
+  return profile
 }
 
 async function writeInitialProfile(user: User, input?: Partial<RegisterProfileInput>) {
   const { db } = getFirebaseServices()
+  const googlePhotoUrl = resolveGooglePhotoUrl(user)
   const profile: UserProfile = {
     id: user.uid,
     name: normalizeName(input?.name || user.displayName || 'Usuario iFinanca'),
@@ -353,6 +367,7 @@ async function writeInitialProfile(user: User, input?: Partial<RegisterProfileIn
     goal: input?.goal || defaultGoal,
     monthlyIncome: Number(input?.monthlyIncome || 0),
     createdAt: new Date().toISOString(),
+    ...(googlePhotoUrl ? { avatarUrl: googlePhotoUrl } : {}),
   }
 
   await setDoc(doc(db, 'users', user.uid), {
@@ -363,6 +378,39 @@ async function writeInitialProfile(user: User, input?: Partial<RegisterProfileIn
   })
 
   return profile
+}
+
+async function syncGoogleProfileData(user: User, data: FirestoreProfileData) {
+  const { db } = getFirebaseServices()
+  const updates: Record<string, unknown> = {
+    updatedAt: serverTimestamp(),
+  }
+  const googleName = normalizeName(user.displayName || '')
+  const googleEmail = normalizeEmail(user.email || '')
+  const googlePhotoUrl = resolveGooglePhotoUrl(user)
+
+  if ((!data.name || data.name === 'Usuario iFinanca') && googleName.length >= 2) {
+    updates.name = googleName
+    data.name = googleName
+  }
+
+  if (googleEmail && data.email !== googleEmail) {
+    updates.email = googleEmail
+    data.email = googleEmail
+  }
+
+  // Only fill the Google photo when the profile never stored an avatar field.
+  // An empty avatarUrl means the user intentionally removed the photo.
+  if (!hasOwnProfileField(data, 'avatarUrl') && googlePhotoUrl) {
+    updates.avatarUrl = googlePhotoUrl
+    data.avatarUrl = googlePhotoUrl
+  }
+
+  if (Object.keys(updates).length > 1) {
+    await updateDoc(doc(db, 'users', user.uid), updates)
+  }
+
+  return data
 }
 
 export async function getCurrentUserProfile(user: User) {
@@ -452,7 +500,8 @@ export async function signInWithGoogleProfile(input?: Partial<RegisterProfileInp
     })
   }
 
-  return profileFromUser(credential.user, snapshot.data() as FirestoreProfileData)
+  const syncedData = await syncGoogleProfileData(credential.user, snapshot.data() as FirestoreProfileData)
+  return profileFromUser(credential.user, syncedData)
 }
 
 export async function logoutUser() {
@@ -483,7 +532,10 @@ export async function updateUserProfileDocument(profile: UserProfile) {
     email: normalizeEmail(profile.email),
     goal: profile.goal,
     monthlyIncome: Number(profile.monthlyIncome),
-    avatarUrl: profile.avatarUrl || deleteField(),
+    avatarUrl:
+      hasOwnProfileField(profile, 'avatarUrl') && typeof profile.avatarUrl === 'string'
+        ? profile.avatarUrl
+        : deleteField(),
     updatedAt: serverTimestamp(),
   })
 }
