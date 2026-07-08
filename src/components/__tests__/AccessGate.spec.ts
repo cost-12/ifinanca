@@ -171,6 +171,24 @@ describe('AccessGate', () => {
     expect(wrapper.emitted('authenticated')).toBeUndefined()
   })
 
+  it('recognizes Firebase SDK App Check throttle errors from production', async () => {
+    vi.mocked(getAppCheckSiteKey).mockReturnValue('site-key')
+    vi.mocked(warmUpAppCheck).mockResolvedValue('ready')
+    vi.mocked(ensureAppCheckReady).mockRejectedValue(
+      Object.assign(new Error('initial throttle'), { code: 'appCheck/initial-throttle' }),
+    )
+
+    const wrapper = mount(AccessGate, { props: { language: 'pt-BR' } })
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text().includes('Continuar com Google'))!.trigger('click')
+    await flushPromises()
+
+    expect(getAppCheckErrorMessage).toHaveBeenCalledWith('pt-BR')
+    expect(wrapper.text()).toContain('Falha na verificação de segurança')
+    expect(signInWithGoogleProfile).not.toHaveBeenCalled()
+  })
+
   it('retries App Check warm-up from the error state', async () => {
     vi.mocked(getAppCheckSiteKey).mockReturnValue('site-key')
     vi.mocked(warmUpAppCheck).mockResolvedValue('error')

@@ -76,9 +76,10 @@ const isValidEmail = computed(() => /^\S+@\S+\.\S+$/.test(form.email))
 const isRegisterMode = computed(() => authMode.value === 'register')
 const passwordIsValid = computed(() => form.password.length >= 6)
 const passwordMatches = computed(() => !isRegisterMode.value || form.password === form.confirmPassword)
+const securityCheckReady = computed(() => !appCheckSiteKey || appCheckStatus.value === 'ready')
 // Centraliza a regra de habilitacao do formulario para cadastro e login.
 const canSubmit = computed(() => {
-  if (!isFirebaseConfigured || !isValidEmail.value || !passwordIsValid.value || !passwordMatches.value) {
+  if (!isFirebaseConfigured || !securityCheckReady.value || !isValidEmail.value || !passwordIsValid.value || !passwordMatches.value) {
     return false
   }
 
@@ -91,6 +92,10 @@ function tr(key: Parameters<typeof translate>[1], variables?: Parameters<typeof 
 
 function errorCode(error: unknown) {
   return error && typeof error === 'object' && 'code' in error ? String(error.code) : 'unknown'
+}
+
+function isAppCheckErrorCode(code: string) {
+  return code.startsWith('app-check/') || code.startsWith('appCheck/')
 }
 
 function setAuthMode(nextMode: 'login' | 'register') {
@@ -202,7 +207,7 @@ async function resetPassword() {
 }
 
 async function continueWithGoogle() {
-  if (!isFirebaseConfigured || isGoogleSubmitting.value || isSubmitting.value) {
+  if (!isFirebaseConfigured || isGoogleSubmitting.value || isSubmitting.value || !securityCheckReady.value) {
     return
   }
 
@@ -228,7 +233,7 @@ async function continueWithGoogle() {
   } catch (error) {
     const code = errorCode(error)
 
-    if (appCheckSiteKey && code.startsWith('app-check/')) {
+    if (appCheckSiteKey && isAppCheckErrorCode(code)) {
       appCheckStatus.value = 'error'
       errorMessage.value = ''
     } else {
@@ -405,7 +410,7 @@ async function continueWithGoogle() {
         <button
           class="btn mb-3 w-full border-white/10 bg-white text-[#1f2937] hover:bg-zinc-100"
           type="button"
-          :disabled="!isFirebaseConfigured || isGoogleSubmitting || isSubmitting || appCheckStatus === 'loading'"
+          :disabled="!isFirebaseConfigured || isGoogleSubmitting || isSubmitting || !securityCheckReady"
           @click="continueWithGoogle"
         >
           <span v-if="isGoogleSubmitting" class="loading loading-spinner loading-sm"></span>
