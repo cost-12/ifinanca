@@ -7,7 +7,7 @@ Plataforma Vue para gestao financeira pessoal com visual inspirado no Meu Pluggy
 - Frontend: Vue/Vite hospedado no Cloudflare Pages.
 - Autenticacao: Firebase Authentication com provedor Email/Senha.
 - Banco de dados: Firebase Firestore para perfis protegidos em `users/{uid}`.
-- Pluggy: Cloudflare Pages Function em `/api/connect-token`, mantendo credenciais server-side.
+- Pluggy: Cloudflare Pages Functions em `/api/connect-token` e `/api/pluggy-data`, mantendo credenciais server-side.
 - SPA fallback: `public/_redirects` redireciona rotas para `index.html`.
 
 ## Setup local
@@ -35,6 +35,8 @@ VITE_FIREBASE_MEASUREMENT_ID=
 VITE_PLUGGY_CONNECT_TOKEN_URL=/api/connect-token
 VITE_PLUGGY_INCLUDE_SANDBOX=true
 ```
+
+`VITE_PLUGGY_CONNECT_TOKEN_URL` pode ficar omitida quando o app estiver usando o endpoint same-origin `/api/connect-token`. Use `VITE_PLUGGY_INCLUDE_SANDBOX=true` somente em desenvolvimento, preview ou apresentacao controlada.
 
 Para deploy via Cloudflare Pages conectado ao Git, configure essas variaveis como build variables no painel do Pages. Nao versione `.env.production` com valores reais.
 
@@ -84,6 +86,8 @@ npx wrangler pages secret put PLUGGY_WEBHOOK_SECRET --project-name ifinanca
 ```
 
 Para desenvolvimento local com `npm run cloudflare:dev`, copie `.dev.vars.example` para `.dev.vars` e substitua pelos seus acessos reais da Pluggy.
+
+O endpoint `/api/pluggy-data` tambem usa esses secrets para buscar dados dinamicos da Pluggy. Se `FIREBASE_WEB_API_KEY` estiver definido no Cloudflare, o frontend precisa estar autenticado para enviar o Firebase ID token na chamada.
 
 ## Firebase
 

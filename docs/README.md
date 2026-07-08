@@ -32,7 +32,7 @@ iFinanca é uma aplicação web de gestão financeira pessoal construída com Vu
 
 - Firebase Authentication para autenticação
 - Firestore para armazenamento de perfis de usuário
-- Cloudflare Pages Functions para emissão de token de conexão Pluggy
+- Cloudflare Pages Functions para emissão de token Pluggy e leitura de contas/transações
 - Firebase Data Connect como camada opcional de sincronização
 
 ### Estrutura de pastas
@@ -58,7 +58,7 @@ iFinanca é uma aplicação web de gestão financeira pessoal construída com Vu
 
 ### Pré-requisitos
 
-- Node.js 22.18+ ou versão compatível
+- Node.js 24.15+ ou versão compatível
 - npm
 
 ### Passos
@@ -115,6 +115,8 @@ npm run cloudflare:deploy
 
 - fluxo de conexão de contas bancárias
 - funcionamento via função serverless em functions/api/connect-token.ts
+- carregamento de contas e transações via functions/api/pluggy-data.ts
+- suporte a conectores Sandbox quando VITE_PLUGGY_INCLUDE_SANDBOX=true
 
 ### Data Connect
 
@@ -134,5 +136,3 @@ npm run cloudflare:deploy
 - expandir o modelo de transações com categorias e bancos reais
 - adicionar testes end-to-end mais completos para fluxos principais
 - implementar monitoramento e logs de integrações externas
-
-tpf

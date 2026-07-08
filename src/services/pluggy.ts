@@ -1,5 +1,5 @@
 import type { ConnectEventPayload, PluggyConnectProps } from 'pluggy-connect-sdk'
-import type { PluggyAccount, PluggyTransaction } from '@/../functions/api/pluggy-data'
+import type { PluggyAccount, PluggyDataResponse, PluggyTransaction } from '@/../functions/api/pluggy-data'
 
 export type { PluggyAccount, PluggyTransaction }
 
@@ -18,8 +18,11 @@ export interface PluggyConnectionResult {
 }
 
 export interface PluggyItemData {
+  itemId?: string
+  loadedAt?: string
   accounts: PluggyAccount[]
   transactions: PluggyTransaction[]
+  partialErrors?: PluggyDataResponse['partialErrors']
 }
 
 interface ConnectTokenResponse {
@@ -28,14 +31,14 @@ interface ConnectTokenResponse {
   token?: string
 }
 
-const tokenEndpoint = import.meta.env.VITE_PLUGGY_CONNECT_TOKEN_URL
+const tokenEndpoint = import.meta.env.VITE_PLUGGY_CONNECT_TOKEN_URL || '/api/connect-token'
 const dataEndpoint = '/api/pluggy-data'
 
-async function fetchConnectToken(request: PluggyConnectionRequest, idToken?: string) {
-  if (!tokenEndpoint) {
-    throw new Error('VITE_PLUGGY_CONNECT_TOKEN_URL não configurado')
-  }
+export function isPluggySandboxEnabled() {
+  return import.meta.env.VITE_PLUGGY_INCLUDE_SANDBOX === 'true'
+}
 
+async function fetchConnectToken(request: PluggyConnectionRequest, idToken?: string) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
@@ -80,10 +83,11 @@ async function fetchConnectToken(request: PluggyConnectionRequest, idToken?: str
  * Requires a valid Firebase ID token when the backend has FIREBASE_WEB_API_KEY set.
  */
 export async function fetchPluggyItemData(itemId: string, idToken?: string): Promise<PluggyItemData> {
+  const resolvedIdToken = idToken ?? (await getCurrentIdToken()) ?? undefined
   const headers: Record<string, string> = {}
 
-  if (idToken) {
-    headers['Authorization'] = `Bearer ${idToken}`
+  if (resolvedIdToken) {
+    headers['Authorization'] = `Bearer ${resolvedIdToken}`
   }
 
   const response = await fetch(`${dataEndpoint}?itemId=${encodeURIComponent(itemId)}`, { headers })
@@ -93,7 +97,15 @@ export async function fetchPluggyItemData(itemId: string, idToken?: string): Pro
     throw new Error(body?.error ?? 'Não foi possível carregar dados do Pluggy')
   }
 
-  return response.json() as Promise<PluggyItemData>
+  const payload = (await response.json()) as PluggyItemData
+
+  return {
+    itemId: payload.itemId ?? itemId,
+    loadedAt: payload.loadedAt,
+    accounts: Array.isArray(payload.accounts) ? payload.accounts : [],
+    transactions: Array.isArray(payload.transactions) ? payload.transactions : [],
+    partialErrors: Array.isArray(payload.partialErrors) ? payload.partialErrors : [],
+  }
 }
 
 /**
@@ -146,8 +158,9 @@ export async function openPluggyConnect(
     const widgetProps: PluggyConnectProps = {
       connectToken,
       allowConnectInBackground: true,
+      allowFullscreen: true,
       countries,
-      includeSandbox: import.meta.env.VITE_PLUGGY_INCLUDE_SANDBOX === 'true',
+      includeSandbox: isPluggySandboxEnabled(),
       language: 'pt',
       products,
       theme: 'dark',

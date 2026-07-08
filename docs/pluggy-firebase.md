@@ -14,6 +14,10 @@ Este projeto usa Cloudflare Pages para hospedar o app Vue e Firebase Firestore c
 8. A Pluggy retorna `accessToken`.
 9. A Function normaliza a resposta para `{ "connectToken": "...", "accessToken": "..." }`.
 10. O front usa esse token no `pluggy-connect-sdk`.
+11. Quando o widget conclui a conexao, o front recebe o `itemId` no callback `onSuccess`.
+12. O dashboard chama `GET /api/pluggy-data?itemId=...`.
+13. A Function usa a API Key server-side para buscar contas em `GET /accounts` e transacoes em `GET /v2/transactions`.
+14. O dashboard substitui os dados mockados por contas, saldos e lancamentos da Pluggy.
 
 Referencias:
 
@@ -59,6 +63,41 @@ Response:
 ```
 
 O front aceita `connectToken`, `accessToken` ou `token`.
+
+## Endpoint de dados Pluggy
+
+Arquivo:
+
+```text
+functions/api/pluggy-data.ts
+```
+
+Rota publicada:
+
+```http
+GET /api/pluggy-data?itemId=pluggy-item-id
+Authorization: Bearer firebase-id-token
+```
+
+Response:
+
+```json
+{
+  "itemId": "pluggy-item-id",
+  "loadedAt": "2026-07-08T14:00:00.000Z",
+  "accounts": [],
+  "transactions": [],
+  "partialErrors": []
+}
+```
+
+Observacoes:
+
+- se `FIREBASE_WEB_API_KEY` estiver configurada no Cloudflare, a Function exige `Authorization: Bearer <Firebase ID token>`;
+- o frontend envia esse token automaticamente quando existe usuario autenticado;
+- contas sao carregadas por `GET https://api.pluggy.ai/accounts?itemId=...`;
+- transacoes sao carregadas por `GET https://api.pluggy.ai/v2/transactions?accountId=...`;
+- a Function limita a busca a algumas contas/paginas para manter a resposta adequada ao runtime de Pages Functions.
 
 ## Webhook Pluggy
 
@@ -179,6 +218,24 @@ Em Cloudflare Pages, o endpoint deve ser same-origin:
 ```sh
 VITE_PLUGGY_CONNECT_TOKEN_URL=/api/connect-token
 ```
+
+Se essa variavel nao for definida, o frontend usa `/api/connect-token` como padrao.
+
+Para exibir conectores de teste no widget Pluggy Connect:
+
+```sh
+VITE_PLUGGY_INCLUDE_SANDBOX=true
+```
+
+Com o sandbox ativo, use os conectores Sandbox da Pluggy para testar:
+
+```text
+Usuario: user-ok
+Senha: password-ok
+MFA: 123456
+```
+
+Para testar grande volume de transacoes, a documentacao da Pluggy tambem aceita usuarios de performance, como `user-ok-perf` e `user-ok-perf-1000x`.
 
 ## Firebase Auth e regras
 

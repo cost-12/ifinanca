@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   CreditCard,
   Eye,
+  EyeOff,
   Home,
   Landmark,
   Link2,
@@ -18,6 +19,7 @@ import {
   PiggyBank,
   Plus,
   ReceiptText,
+  RefreshCw,
   ShieldCheck,
   ShieldAlert,
   Sun,
@@ -37,7 +39,7 @@ import { formatMoney, formatSignedPercent, languageOptions, translate } from '@/
 import BrandLogo from '@/components/BrandLogo.vue'
 import MaterialIcon from '@/components/MaterialIcon.vue'
 import { loadTransactionsForUser, updateTransactionStatusInDataConnect } from '@/services/dataconnect'
-import { fetchPluggyItemData, openPluggyConnect } from '@/services/pluggy'
+import { fetchPluggyItemData, isPluggySandboxEnabled, openPluggyConnect } from '@/services/pluggy'
 import type { PluggyAccount, PluggyTransaction } from '@/services/pluggy'
 import type { AppLanguage, AppTheme, BankConnection, DataSource, Transaction, UserProfile } from '@/types/finance'
 
@@ -68,6 +70,7 @@ interface NotificationItem {
 }
 
 const NOTIFICATION_STORAGE_PREFIX = 'ifinanca.notifications.read'
+const BALANCE_VISIBILITY_STORAGE_PREFIX = 'ifinanca.balance.visible'
 const MAX_AVATAR_BYTES = 3 * 1024 * 1024
 
 const activeTab = ref<TabId>('overview')
@@ -82,13 +85,17 @@ const connectMessage = ref('')
 const connectError = ref('')
 const connectedItemId = ref('')
 const readNotificationIds = ref<string[]>(readStoredNotificationIds(props.profile.id))
+const isBalanceVisible = ref(readStoredBalanceVisibility(props.profile.id))
 const dashboardTransactions = ref<Transaction[]>([...mockTransactions])
 const dashboardBankConnections = ref<BankConnection[]>([...mockBankConnections])
 const transactionsSource = ref<DataSource>('mock')
 const isLoadingTransactions = ref(false)
 const isLoadingPluggyData = ref(false)
+const pluggyDataLoadedAt = ref('')
+const pluggyPartialErrors = ref<Array<{ accountId: string; message: string }>>([])
 const isUpdatingTransactionStatus = ref<string | null>(null)
 const transactionUpdateFeedback = ref<{ id: string; type: 'success' | 'error'; message: string } | null>(null)
+const pluggySandboxEnabled = isPluggySandboxEnabled()
 
 function tr(key: Parameters<typeof translate>[1], variables?: Parameters<typeof translate>[2]) {
   return translate(props.language, key, variables)
@@ -107,6 +114,21 @@ const totalBalance = computed(() => dashboardBankConnections.value.reduce((total
 const incomeTotal = computed(() => dashboardTransactions.value.filter((item) => item.amount > 0).reduce((total, item) => total + item.amount, 0))
 const outcomeTotal = computed(() => Math.abs(dashboardTransactions.value.filter((item) => item.amount < 0).reduce((total, item) => total + item.amount, 0)))
 const assetTotal = computed(() => assets.reduce((total, asset) => total + asset.amount, 0))
+const overviewAccounts = computed(() => {
+  if (transactionsSource.value !== 'pluggy') {
+    return financeAccounts.map((account) => ({ ...account, variationLabel: formatSignedPercent(account.variation, props.language) }))
+  }
+
+  return dashboardBankConnections.value.map((bank) => ({
+    id: bank.id,
+    bankId: bank.id,
+    name: bank.name,
+    type: bank.mask,
+    amount: bank.balance,
+    variation: 0,
+    variationLabel: bankStatusLabel(bank.status),
+  }))
+})
 // As notificacoes sao derivadas dos dados atuais, sem estado duplicado manual.
 const notifications = computed<NotificationItem[]>(() => {
   const bankAlerts = dashboardBankConnections.value
@@ -145,29 +167,56 @@ const notifications = computed<NotificationItem[]>(() => {
 const unreadNotificationCount = computed(
   () => notifications.value.filter((notification) => !readNotificationIds.value.includes(notification.id)).length,
 )
+const pluggyLoadedAtLabel = computed(() => {
+  if (!pluggyDataLoadedAt.value) return ''
 
-function mapPluggyAccount(account: PluggyAccount, index: number): BankConnection {
+  return new Date(pluggyDataLoadedAt.value).toLocaleString(props.language, {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+})
+
+function displayMoney(value: number) {
+  return isBalanceVisible.value ? formatMoney(value, props.language) : 'R$ ••••••'
+}
+
+function balanceToggleLabel() {
+  return isBalanceVisible.value ? tr('dashboard.hideBalances') : tr('dashboard.showBalances')
+}
+
+function countTransactionsByAccount(transactions: PluggyTransaction[]) {
+  return transactions.reduce<Record<string, number>>((accumulator, transaction) => {
+    accumulator[transaction.accountId] = (accumulator[transaction.accountId] ?? 0) + 1
+    return accumulator
+  }, {})
+}
+
+function mapPluggyAccount(account: PluggyAccount, index: number, newTransactions = 0): BankConnection {
   // Map Pluggy account types to display colors.
   const typeColors: Record<string, string> = {
     BANK: '#17c964',
     CREDIT: '#f52a55',
     INVESTMENT: '#3b82f6',
   }
+  const displayName = account.marketingName || account.name || `Conta Pluggy ${index + 1}`
+  const accountNumber = account.bankData?.transferNumber || account.number
 
   return {
     id: account.id,
-    name: account.name,
-    shortName: account.name.split(' ')[0] || account.name,
-    logoText: account.name.slice(0, 2).toUpperCase(),
+    name: displayName,
+    shortName: displayName.split(' ')[0] || displayName,
+    logoText: displayName.slice(0, 2).toUpperCase(),
     color: typeColors[account.type] ?? '#7c16dd',
     balance: account.balance,
-    newTransactions: 0,
+    newTransactions,
     status: 'Sincronizado',
-    mask: account.number ? `•••• ${account.number.slice(-4)}` : `Conta ${index + 1}`,
+    mask: accountNumber ? `•••• ${accountNumber.slice(-4)}` : `Conta ${index + 1}`,
   } satisfies BankConnection
 }
 
-function mapPluggyTransaction(transaction: PluggyTransaction): Transaction {
+function mapPluggyTransaction(transaction: PluggyTransaction, accountNames: Record<string, string>): Transaction {
   // A Pluggy separa CREDIT/DEBIT; o dashboard usa positivo para entrada e negativo para saida.
   const isCredit = transaction.type === 'CREDIT' || transaction.amount > 0
   const isPosted = transaction.status === 'POSTED'
@@ -175,7 +224,7 @@ function mapPluggyTransaction(transaction: PluggyTransaction): Transaction {
   return {
     id: transaction.id,
     title: transaction.merchant?.name || transaction.description || 'Transação',
-    bank: 'Pluggy',
+    bank: accountNames[transaction.accountId] ?? 'Pluggy',
     category: transaction.category || (isCredit ? 'Receita' : 'Despesa'),
     amount: isCredit ? Math.abs(transaction.amount) : -Math.abs(transaction.amount),
     date: new Date(transaction.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
@@ -286,6 +335,22 @@ function readStoredNotificationIds(profileId: string) {
     return stored ? (JSON.parse(stored) as string[]) : []
   } catch {
     return []
+  }
+}
+
+function readStoredBalanceVisibility(profileId: string) {
+  if (globalThis.window === undefined) {
+    return true
+  }
+
+  return globalThis.localStorage.getItem(`${BALANCE_VISIBILITY_STORAGE_PREFIX}.${profileId}`) !== 'false'
+}
+
+function toggleBalanceVisibility() {
+  isBalanceVisible.value = !isBalanceVisible.value
+
+  if (globalThis.window !== undefined) {
+    globalThis.localStorage.setItem(`${BALANCE_VISIBILITY_STORAGE_PREFIX}.${props.profile.id}`, String(isBalanceVisible.value))
   }
 }
 
@@ -435,17 +500,31 @@ async function loadPluggyData(itemId: string) {
 
   isLoadingPluggyData.value = true
   connectError.value = ''
+  pluggyPartialErrors.value = []
 
   try {
     const data = await fetchPluggyItemData(itemId)
+    const transactionCounts = countTransactionsByAccount(data.transactions)
+    const accountNames = data.accounts.reduce<Record<string, string>>((accumulator, account, index) => {
+      accumulator[account.id] = account.marketingName || account.name || `Conta Pluggy ${index + 1}`
+      return accumulator
+    }, {})
 
     if (data.accounts.length) {
-      dashboardBankConnections.value = data.accounts.map(mapPluggyAccount)
-      transactionsSource.value = 'pluggy'
+      dashboardBankConnections.value = data.accounts.map((account, index) =>
+        mapPluggyAccount(account, index, transactionCounts[account.id] ?? 0),
+      )
     }
 
-    if (data.transactions.length) {
-      dashboardTransactions.value = data.transactions.map(mapPluggyTransaction)
+    dashboardTransactions.value = data.transactions.map((transaction) => mapPluggyTransaction(transaction, accountNames))
+    transactionsSource.value = 'pluggy'
+    pluggyDataLoadedAt.value = data.loadedAt ?? new Date().toISOString()
+    pluggyPartialErrors.value = data.partialErrors ?? []
+
+    if (!data.accounts.length && !data.transactions.length) {
+      connectMessage.value = 'Conexao Pluggy encontrada, mas os dados ainda nao foram sincronizados.'
+    } else if (data.partialErrors?.length) {
+      connectMessage.value = 'Dados Pluggy carregados com avisos em algumas contas.'
     }
   } catch (error) {
     connectError.value = error instanceof Error ? error.message : 'Erro ao carregar dados do Pluggy'
@@ -521,23 +600,35 @@ function transactionStatusLabel(status: Transaction['status']) {
   return status === 'Confirmado' ? tr('status.confirmed') : tr('status.planned')
 }
 
-onMounted(async () => {
-  void refreshTransactions()
+async function restoreDashboardData() {
+  dashboardBankConnections.value = [...mockBankConnections]
+  pluggyDataLoadedAt.value = ''
+  pluggyPartialErrors.value = []
 
-  // If the user already has connected items from a previous session, load the
-  // most recently connected one to restore real data on page load.
+  // If the user already has connected items from a previous session, Pluggy has
+  // priority over Data Connect/mock so the dashboard does not flicker backwards.
   const existingItemIds = props.profile.pluggyItemIds ?? []
   const latestItemId = existingItemIds[existingItemIds.length - 1]
   if (latestItemId) {
     connectedItemId.value = latestItemId
     await loadPluggyData(latestItemId)
+    return
   }
+
+  connectedItemId.value = ''
+  await refreshTransactions()
+}
+
+onMounted(async () => {
+  await restoreDashboardData()
 })
 
 watch(
   () => props.profile.id,
   () => {
-    void refreshTransactions()
+    readNotificationIds.value = readStoredNotificationIds(props.profile.id)
+    isBalanceVisible.value = readStoredBalanceVisibility(props.profile.id)
+    void restoreDashboardData()
   },
 )
 </script>
@@ -732,18 +823,40 @@ watch(
       <div class="grid gap-8 xl:grid-cols-[260px_1fr] 2xl:grid-cols-[300px_1fr]">
         <aside class="hidden xl:block">
           <div class="sticky top-24 space-y-3">
-            <button class="keep-white btn w-full justify-start border-0 bg-[#f52a55] text-white hover:bg-[#e1264f]" type="button" @click="connectAccount">
-              <Link2 :size="18" />
+            <button class="keep-white btn w-full justify-start border-0 bg-[#f52a55] text-white hover:bg-[#e1264f]" :disabled="isConnecting" type="button" @click="connectAccount">
+              <span v-if="isConnecting" class="loading loading-spinner loading-sm"></span>
+              <Link2 v-else :size="18" />
               {{ tr('dashboard.connectAccount') }}
             </button>
             <div class="rounded-lg border border-white/10 bg-[#101318] p-4">
               <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.sync') }}</p>
-              <p class="mt-2 text-2xl font-black text-white">{{ tr('dashboard.banksCount') }}</p>
-              <p class="mt-1 text-sm text-zinc-500">{{ tr('dashboard.futureImports') }}</p>
+              <p class="mt-2 text-2xl font-black text-white">
+                <span v-if="isLoadingPluggyData" class="loading loading-dots loading-md"></span>
+                <span v-else>{{ dashboardBankConnections.length }} {{ tr('dashboard.banksShort') }}</span>
+              </p>
+              <p class="mt-1 text-sm text-zinc-500">
+                {{ pluggyLoadedAtLabel ? tr('dashboard.lastSync', { time: pluggyLoadedAtLabel }) : tr('dashboard.futureImports') }}
+              </p>
             </div>
             <div class="rounded-lg border border-white/10 bg-[#101318] p-4">
-              <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.pluggyItem') }}</p>
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.pluggyItem') }}</p>
+                <button
+                  v-if="connectedItemId"
+                  class="btn btn-ghost btn-square btn-xs text-zinc-400"
+                  :disabled="isLoadingPluggyData"
+                  :title="tr('dashboard.refreshPluggy')"
+                  type="button"
+                  @click="loadPluggyData(connectedItemId)"
+                >
+                  <RefreshCw :class="{ 'animate-spin': isLoadingPluggyData }" :size="14" />
+                </button>
+              </div>
               <p class="mt-2 break-all text-sm text-[#76eaa2]">{{ connectedItemId || tr('dashboard.waitingConnection') }}</p>
+            </div>
+            <div v-if="pluggySandboxEnabled" class="rounded-lg border border-[#244332] bg-[#0d1c14] p-4 text-sm">
+              <p class="font-black text-[#76eaa2]">{{ tr('dashboard.sandboxTitle') }}</p>
+              <p class="mt-2 text-zinc-400">{{ tr('dashboard.sandboxCredentials') }}</p>
             </div>
           </div>
         </aside>
@@ -775,9 +888,12 @@ watch(
               <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
                 <div class="flex items-center justify-between text-zinc-400">
                   <span class="text-sm font-bold">{{ tr('dashboard.totalBalance') }}</span>
-                  <Eye :size="18" />
+                  <button class="btn btn-ghost btn-square btn-xs text-zinc-400 hover:text-white" :title="balanceToggleLabel()" type="button" @click="toggleBalanceVisibility">
+                    <EyeOff v-if="isBalanceVisible" :size="18" />
+                    <Eye v-else :size="18" />
+                  </button>
                 </div>
-                <p class="mt-4 text-3xl font-black">{{ formatMoney(totalBalance, language) }}</p>
+                <p class="mt-4 text-3xl font-black">{{ displayMoney(totalBalance) }}</p>
                 <p class="mt-2 text-sm font-semibold text-[#76eaa2]">{{ tr('dashboard.monthGrowth') }}</p>
               </div>
 
@@ -786,7 +902,7 @@ watch(
                   <span class="text-sm font-bold">{{ tr('dashboard.income') }}</span>
                   <CircleDollarSign :size="18" />
                 </div>
-                <p class="mt-4 text-3xl font-black">{{ formatMoney(incomeTotal, language) }}</p>
+                <p class="mt-4 text-3xl font-black">{{ displayMoney(incomeTotal) }}</p>
                 <p class="mt-2 text-sm font-semibold text-[#76eaa2]">{{ tr('dashboard.confirmed') }}</p>
               </div>
 
@@ -795,7 +911,7 @@ watch(
                   <span class="text-sm font-bold">{{ tr('dashboard.outcome') }}</span>
                   <CreditCard :size="18" />
                 </div>
-                <p class="mt-4 text-3xl font-black">{{ formatMoney(outcomeTotal, language) }}</p>
+                <p class="mt-4 text-3xl font-black">{{ displayMoney(outcomeTotal) }}</p>
                 <p class="mt-2 text-sm font-semibold text-[#ff6b7f]">{{ tr('dashboard.plannedPaid') }}</p>
               </div>
 
@@ -804,7 +920,7 @@ watch(
                   <span class="text-sm font-bold">{{ tr('dashboard.netWorth') }}</span>
                   <PiggyBank :size="18" />
                 </div>
-                <p class="mt-4 text-3xl font-black">{{ formatMoney(assetTotal, language) }}</p>
+                <p class="mt-4 text-3xl font-black">{{ displayMoney(assetTotal) }}</p>
                 <p class="mt-2 text-sm font-semibold text-[#7db4ff]">{{ tr('dashboard.connectedAssets') }}</p>
               </div>
             </section>
@@ -842,17 +958,17 @@ watch(
                 </div>
 
                 <div class="space-y-3">
-                  <div v-for="account in financeAccounts" :key="account.id" class="flex items-center justify-between rounded-lg bg-[#0b0d12] p-4">
+                  <div v-for="account in overviewAccounts" :key="account.id" class="flex items-center justify-between rounded-lg bg-[#0b0d12] p-4">
                     <div class="min-w-0">
                       <p class="truncate font-black">{{ account.name }}</p>
                       <p class="text-sm text-zinc-500">{{ account.type }}</p>
                     </div>
                     <div class="text-right">
                       <p :class="account.amount >= 0 ? 'text-[#7db4ff]' : 'text-[#ff6b7f]'" class="font-black">
-                        {{ formatMoney(account.amount, language) }}
+                        {{ displayMoney(account.amount) }}
                       </p>
                       <p :class="account.variation >= 0 ? 'text-[#76eaa2]' : 'text-[#ff6b7f]'" class="text-xs font-bold">
-                        {{ formatSignedPercent(account.variation, language) }}
+                        {{ account.variationLabel }}
                       </p>
                     </div>
                   </div>
@@ -930,7 +1046,7 @@ watch(
                           <span v-else class="badge border-white/10 bg-white/5 text-zinc-300">{{ transactionStatusLabel(transaction.status) }}</span>
                         </td>
                         <td :class="transaction.amount >= 0 ? 'text-[#76eaa2]' : 'text-[#ff6b7f]'" class="text-right font-black">
-                          {{ formatMoney(transaction.amount, language) }}
+                          {{ displayMoney(transaction.amount) }}
                         </td>
                       </tr>
                     </tbody>
@@ -947,11 +1063,43 @@ watch(
               <p>{{ connectError }}</p>
             </div>
 
-            <!-- Real bank connections from Pluggy -->
-            <template v-if="transactionsSource === 'pluggy' && dashboardBankConnections.length">
+            <div v-if="pluggySandboxEnabled" class="rounded-lg border border-[#244332] bg-[#0d1c14] p-4 text-sm xl:hidden">
+              <p class="font-black text-[#76eaa2]">{{ tr('dashboard.sandboxTitle') }}</p>
+              <p class="mt-2 text-zinc-400">{{ tr('dashboard.sandboxCredentials') }}</p>
+            </div>
+
+            <div v-if="pluggyPartialErrors.length" class="rounded-lg border border-[#3b3217] bg-[#201a0d] p-4 text-sm text-[#ffd36a]">
+              {{ tr('dashboard.partialPluggyErrors', { count: pluggyPartialErrors.length }) }}
+            </div>
+
+            <template v-if="isLoadingPluggyData">
               <div class="flex items-center gap-2 text-sm font-bold text-zinc-400">
-                <span class="size-2 rounded-full bg-[#17c964]"></span>
-                Contas conectadas via Pluggy (dados reais)
+                <span class="loading loading-spinner loading-xs text-[#17c964]"></span>
+                {{ tr('dashboard.loadingPluggy') }}
+              </div>
+              <article v-for="index in 3" :key="index" class="rounded-lg border border-white/10 bg-[#101318] p-5">
+                <div class="flex items-center gap-4">
+                  <div class="skeleton size-12 rounded-full bg-white/10"></div>
+                  <div class="min-w-0 flex-1 space-y-3">
+                    <div class="skeleton h-5 w-44 max-w-full bg-white/10"></div>
+                    <div class="skeleton h-4 w-28 bg-white/10"></div>
+                  </div>
+                  <div class="skeleton h-8 w-24 rounded bg-white/10"></div>
+                </div>
+              </article>
+            </template>
+
+            <!-- Real bank connections from Pluggy -->
+            <template v-else-if="transactionsSource === 'pluggy' && dashboardBankConnections.length">
+              <div class="flex flex-col gap-2 text-sm font-bold text-zinc-400 sm:flex-row sm:items-center sm:justify-between">
+                <span class="flex items-center gap-2">
+                  <span class="size-2 rounded-full bg-[#17c964]"></span>
+                  {{ tr('dashboard.realPluggyAccounts') }}
+                </span>
+                <button class="btn btn-xs border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10" type="button" @click="loadPluggyData(connectedItemId)">
+                  <RefreshCw :class="{ 'animate-spin': isLoadingPluggyData }" :size="14" />
+                  {{ tr('dashboard.refreshPluggy') }}
+                </button>
               </div>
               <article v-for="bank in dashboardBankConnections" :key="bank.id" class="rounded-lg border border-[#173423] bg-[#101318] p-5">
                 <div class="flex items-center justify-between gap-4">
@@ -965,9 +1113,13 @@ watch(
                       <p class="mt-2 text-sm font-black text-[#76eaa2]">{{ bankStatusLabel(bank.status) }}</p>
                     </div>
                   </div>
-                  <button class="btn btn-square btn-ghost text-[#17c964]" type="button">
-                    <ArrowRight :size="22" />
-                  </button>
+                  <div class="shrink-0 text-right">
+                    <p class="text-lg font-black text-white">{{ displayMoney(bank.balance) }}</p>
+                    <p class="text-xs font-bold text-zinc-500">{{ newLaunchLabel(bank) }}</p>
+                    <button class="btn btn-square btn-ghost mt-2 text-[#17c964]" type="button" @click="activeTab = 'fluxo'">
+                      <ArrowRight :size="22" />
+                    </button>
+                  </div>
                 </div>
               </article>
             </template>
@@ -992,9 +1144,12 @@ watch(
                       </p>
                     </div>
                   </div>
-                  <button class="btn btn-square btn-ghost text-[#17c964]" type="button">
-                    <ArrowRight :size="22" />
-                  </button>
+                  <div class="shrink-0 text-right">
+                    <p class="text-lg font-black text-white">{{ displayMoney(bank.balance) }}</p>
+                    <button class="btn btn-square btn-ghost mt-2 text-[#17c964]" type="button" @click="activeTab = 'fluxo'">
+                      <ArrowRight :size="22" />
+                    </button>
+                  </div>
                 </div>
               </article>
             </template>
@@ -1005,7 +1160,7 @@ watch(
               <Wallet class="mb-8" :style="{ color: asset.tone }" :size="28" />
               <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.allocation', { value: asset.allocation }) }}</p>
               <h2 class="mt-2 text-2xl font-black">{{ asset.name }}</h2>
-              <p class="mt-4 text-3xl font-black">{{ formatMoney(asset.amount, language) }}</p>
+              <p class="mt-4 text-3xl font-black">{{ displayMoney(asset.amount) }}</p>
               <p :class="asset.variation >= 0 ? 'text-[#76eaa2]' : 'text-[#ff6b7f]'" class="mt-2 text-sm font-black">
                 {{ formatSignedPercent(asset.variation, language) }}
               </p>
@@ -1028,7 +1183,7 @@ watch(
                   <p class="text-sm text-zinc-500">{{ transaction.category }} - {{ transaction.date }}</p>
                 </div>
                 <p :class="transaction.amount >= 0 ? 'text-[#76eaa2]' : 'text-[#ff6b7f]'" class="font-black sm:text-right">
-                  {{ formatMoney(transaction.amount, language) }}
+                  {{ displayMoney(transaction.amount) }}
                 </p>
               </div>
             </div>

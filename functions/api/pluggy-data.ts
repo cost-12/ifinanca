@@ -6,6 +6,8 @@ interface PluggyDataEnv {
 }
 
 const PLUGGY_API_URL = 'https://api.pluggy.ai'
+const MAX_ACCOUNTS_TO_FETCH = 5
+const MAX_TRANSACTION_PAGES = 2
 
 function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -82,7 +84,10 @@ async function getPluggyApiKey(clientId: string, clientSecret: string): Promise<
 }
 
 async function fetchPluggyAccounts(apiKey: string, itemId: string) {
-  const response = await fetch(`${PLUGGY_API_URL}/accounts?itemId=${encodeURIComponent(itemId)}`, {
+  const url = new URL(`${PLUGGY_API_URL}/accounts`)
+  url.searchParams.set('itemId', itemId)
+
+  const response = await fetch(url.toString(), {
     headers: {
       accept: 'application/json',
       'X-API-KEY': apiKey,
@@ -94,20 +99,46 @@ async function fetchPluggyAccounts(apiKey: string, itemId: string) {
   return (body?.results ?? []) as PluggyAccount[]
 }
 
-async function fetchPluggyTransactions(apiKey: string, accountId: string, pageSize = 20) {
-  const response = await fetch(
-    `${PLUGGY_API_URL}/transactions?accountId=${encodeURIComponent(accountId)}&pageSize=${pageSize}`,
-    {
+function defaultDateFrom() {
+  const date = new Date()
+  date.setMonth(date.getMonth() - 12)
+  return date.toISOString().slice(0, 10)
+}
+
+interface PluggyListResponse<T> {
+  results?: T[]
+  next?: string | null
+  message?: string
+}
+
+async function fetchPluggyTransactions(apiKey: string, accountId: string) {
+  const transactions: PluggyTransaction[] = []
+  let after: string | null = null
+
+  for (let page = 0; page < MAX_TRANSACTION_PAGES; page += 1) {
+    const url = new URL(`${PLUGGY_API_URL}/v2/transactions`)
+    url.searchParams.set('accountId', accountId)
+    url.searchParams.set('dateFrom', defaultDateFrom())
+    if (after) {
+      url.searchParams.set('after', after)
+    }
+
+    const response = await fetch(url.toString(), {
       headers: {
         accept: 'application/json',
         'X-API-KEY': apiKey,
       },
-    },
-  )
+    })
 
-  const body = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(body?.message ?? 'Failed to fetch Pluggy transactions')
-  return (body?.results ?? []) as PluggyTransaction[]
+    const body = (await response.json().catch(() => ({}))) as PluggyListResponse<PluggyTransaction>
+    if (!response.ok) throw new Error(body?.message ?? 'Failed to fetch Pluggy transactions')
+
+    transactions.push(...(body.results ?? []))
+    after = body.next || null
+    if (!after) break
+  }
+
+  return transactions
 }
 
 // ── Pluggy API types ──────────────────────────────────────────────────────────
@@ -116,11 +147,20 @@ export interface PluggyAccount {
   id: string
   itemId: string
   name: string
+  marketingName?: string
   number: string
   type: 'BANK' | 'CREDIT' | 'INVESTMENT' | (string & {})
   subtype: string
   currencyCode: string
   balance: number
+  bankData?: {
+    transferNumber?: string
+    closingBalance?: number
+    automaticallyInvestedBalance?: number
+    overdraftContractedLimit?: number
+    overdraftUsedLimit?: number
+    unarrangedOverdraftAmount?: number
+  }
   creditData?: {
     creditLimit: number
     availableCreditLimit: number
@@ -166,6 +206,14 @@ export interface PluggyTransaction {
   }
 }
 
+export interface PluggyDataResponse {
+  itemId: string
+  loadedAt: string
+  accounts: PluggyAccount[]
+  transactions: PluggyTransaction[]
+  partialErrors: Array<{ accountId: string; message: string }>
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function onRequestGet({ request, env }: { request: Request; env: PluggyDataEnv }) {
@@ -198,18 +246,34 @@ export async function onRequestGet({ request, env }: { request: Request; env: Pl
     const apiKey = await getPluggyApiKey(clientId, clientSecret)
     const accounts = await fetchPluggyAccounts(apiKey, itemId)
 
-    // Fetch up to 20 transactions for each account in parallel (max 5 accounts
-    // to avoid blowing Cloudflare's CPU time limit).
-    const accountsToFetch = accounts.slice(0, 5)
+    // The current Pluggy recommendation is cursor pagination through /v2/transactions.
+    // We cap the amount of account/page fan-out so the Pages Function remains responsive.
+    const accountsToFetch = accounts.slice(0, MAX_ACCOUNTS_TO_FETCH)
     const transactionsByAccount = await Promise.allSettled(
-      accountsToFetch.map((account) => fetchPluggyTransactions(apiKey, account.id, 20)),
+      accountsToFetch.map((account) => fetchPluggyTransactions(apiKey, account.id)),
     )
 
     const transactions: PluggyTransaction[] = transactionsByAccount.flatMap((result) =>
       result.status === 'fulfilled' ? result.value : [],
     )
+    const partialErrors = transactionsByAccount.flatMap((result, index) => {
+      if (result.status === 'fulfilled') return []
 
-    return jsonResponse({ accounts, transactions })
+      return [
+        {
+          accountId: accountsToFetch[index]?.id ?? 'unknown',
+          message: result.reason instanceof Error ? result.reason.message : 'Failed to fetch Pluggy transactions',
+        },
+      ]
+    })
+
+    return jsonResponse({
+      itemId,
+      loadedAt: new Date().toISOString(),
+      accounts,
+      transactions,
+      partialErrors,
+    } satisfies PluggyDataResponse)
   } catch (error) {
     return jsonResponse(
       { error: error instanceof Error ? error.message : 'Unexpected error fetching Pluggy data' },
