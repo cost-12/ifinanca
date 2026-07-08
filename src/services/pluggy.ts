@@ -163,7 +163,9 @@ export async function openPluggyConnect(
       includeSandbox: isPluggySandboxEnabled(),
       language: 'pt',
       products,
-      theme: 'dark',
+      // The Pluggy iframe owns its internal styles; light mode keeps sandbox credential
+      // selectors readable even when the dashboard behind the modal is dark.
+      theme: 'light',
       onEvent: request.onEvent,
       onSuccess: ({ item }) => {
         resolve({
