@@ -332,6 +332,10 @@ function resolveGooglePhotoUrl(user: User) {
   return typeof user.photoURL === 'string' && user.photoURL.trim() ? user.photoURL.trim() : ''
 }
 
+function hasGoogleProvider(user: User) {
+  return user.providerData.some((provider) => provider.providerId === 'google.com')
+}
+
 function hasOwnProfileField(data: FirestoreProfileData, field: keyof UserProfile) {
   return Object.prototype.hasOwnProperty.call(data, field)
 }
@@ -407,7 +411,11 @@ async function syncGoogleProfileData(user: User, data: FirestoreProfileData) {
   }
 
   if (Object.keys(updates).length > 1) {
-    await updateDoc(doc(db, 'users', user.uid), updates)
+    try {
+      await updateDoc(doc(db, 'users', user.uid), updates)
+    } catch {
+      // Enriquecimento de perfil não deve impedir o acesso quando a sessão já é válida.
+    }
   }
 
   return data
@@ -422,7 +430,10 @@ export async function getCurrentUserProfile(user: User) {
     return writeInitialProfile(user)
   }
 
-  return profileFromUser(user, snapshot.data() as FirestoreProfileData)
+  const profileData = snapshot.data() as FirestoreProfileData
+  const syncedData = hasGoogleProvider(user) ? await syncGoogleProfileData(user, profileData) : profileData
+
+  return profileFromUser(user, syncedData)
 }
 
 export function observeAuthState(onChange: (user: User | null) => void): Unsubscribe {
