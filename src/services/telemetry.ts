@@ -1,3 +1,5 @@
+import { deleteTelemetryBatch, queueTelemetryEvents, readTelemetryQueue } from '@/services/indexeddb'
+
 type TelemetrySeverity = 'debug' | 'info' | 'warning' | 'error'
 
 type TelemetryProperties = Record<string, unknown>
@@ -28,6 +30,7 @@ const MAX_DEPTH = 4
 let initialized = false
 let lastPageViewKey = ''
 let cumulativeLayoutShift = 0
+let isFlushingQueuedTelemetry = false
 
 function telemetryEnabled() {
   const flag = import.meta.env.VITE_TELEMETRY_ENABLED
@@ -118,10 +121,47 @@ function buildEvent(name: string, properties: TelemetryProperties, options: Trac
   }
 }
 
-function sendEvents(events: TelemetryEvent[]) {
-  if (!events.length || typeof window === 'undefined') {
+async function fetchTelemetryPayload(payload: string) {
+  const response = await fetch(telemetryEndpoint(), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: payload,
+    keepalive: true,
+  })
+
+  return response.ok
+}
+
+function queueEventsSilently(events: TelemetryEvent[]) {
+  void queueTelemetryEvents(events).catch(() => undefined)
+}
+
+async function flushQueuedTelemetry() {
+  if (isFlushingQueuedTelemetry || typeof window === 'undefined' || !telemetryEnabled() || navigator.onLine === false) {
     return
   }
+
+  isFlushingQueuedTelemetry = true
+
+  try {
+    const batches = await readTelemetryQueue()
+
+    for (const batch of batches) {
+      const sent = await fetchTelemetryPayload(JSON.stringify({ events: batch.events }))
+      if (!sent) {
+        break
+      }
+      await deleteTelemetryBatch(batch.id)
+    }
+  } catch {
+    // Queued telemetry is best-effort and must not affect the app.
+  } finally {
+    isFlushingQueuedTelemetry = false
+  }
+}
+
+function sendEvents(events: TelemetryEvent[]) {
+  if (!events.length || typeof window === 'undefined') return
 
   const payload = JSON.stringify({ events })
 
@@ -133,21 +173,29 @@ function sendEvents(events: TelemetryEvent[]) {
     return
   }
 
+  if (navigator.onLine === false) {
+    queueEventsSilently(events)
+    return
+  }
+
   try {
     if ('sendBeacon' in navigator && payload.length < 60_000) {
       const blob = new Blob([payload], { type: 'application/json' })
       if (navigator.sendBeacon(telemetryEndpoint(), blob)) {
+        void flushQueuedTelemetry()
         return
       }
     }
 
-    void fetch(telemetryEndpoint(), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: payload,
-      keepalive: true,
+    void fetchTelemetryPayload(payload).then((sent) => {
+      if (sent) {
+        void flushQueuedTelemetry()
+      } else {
+        queueEventsSilently(events)
+      }
     })
   } catch {
+    queueEventsSilently(events)
     // Telemetry must never break user-facing flows.
   }
 }
@@ -253,6 +301,10 @@ export function initializeTelemetry() {
   })
 
   observePerformance()
+  window.addEventListener('online', () => {
+    void flushQueuedTelemetry()
+  })
+  void flushQueuedTelemetry()
   trackTelemetryEvent('app.started', { mode: import.meta.env.MODE })
 }
 

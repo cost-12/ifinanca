@@ -6,6 +6,8 @@ Este projeto possui uma camada simples de telemetria para ajudar a diagnosticar 
 
 O frontend registra eventos por `src/services/telemetry.ts` e envia lotes pequenos para `/api/telemetry` usando `navigator.sendBeacon`. Quando `sendBeacon` não está disponível, o serviço usa `fetch` com `keepalive`.
 
+A telemetria também usa IndexedDB como fila offline. Se o navegador estiver sem rede ou o envio falhar, os eventos sanitizados são guardados em `telemetryQueue` e reenviados quando o evento `online` do navegador disparar.
+
 A função `functions/api/telemetry.ts` recebe os eventos no Cloudflare Pages, remove dados sensíveis e grava um log estruturado com o tipo `ifinanca.telemetry`. Opcionalmente, ela pode encaminhar o mesmo envelope para uma API externa.
 
 ## Eventos principais

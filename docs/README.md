@@ -14,6 +14,7 @@ iFinanca é uma aplicação web de gestão financeira pessoal construída com Vu
 - suporte a internacionalização em português, inglês e espanhol
 - integração opcional com Firebase Data Connect para sincronizar usuários e transações
 - telemetria sanitizada para diagnóstico de autenticação, Pluggy, Data Connect e desempenho
+- cache local com IndexedDB para snapshots financeiros e fila offline de telemetria
 - tema claro/escuro e experiência responsiva
 - guia didático de Vue.js para iniciantes no projeto
 
@@ -35,6 +36,7 @@ iFinanca é uma aplicação web de gestão financeira pessoal construída com Vu
 - Firestore para armazenamento de perfis de usuário
 - Cloudflare Pages Functions para emissão de token Pluggy e leitura de contas/transações
 - Cloudflare Pages Function em `/api/telemetry` para logs estruturados de diagnóstico
+- IndexedDB no navegador para cache local de dados estruturados importantes
 - Firebase Data Connect como camada opcional de sincronização
 
 ### Estrutura de pastas
@@ -135,6 +137,13 @@ npm run cloudflare:deploy
 - logs estruturados no Cloudflare Pages
 - forwarding opcional para API externa por TELEMETRY_INGEST_URL
 - veja [telemetry-diagnostics.md](telemetry-diagnostics.md) para eventos, variáveis e testes
+
+### IndexedDB
+
+- cache local em src/services/indexeddb.ts
+- snapshot do dashboard por usuário
+- fila de telemetria para reenvio quando a rede voltar
+- veja [indexeddb-cache.md](indexeddb-cache.md) para escopo, cuidados e testes
 
 ## Boas práticas
 

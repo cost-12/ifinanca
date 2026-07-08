@@ -40,6 +40,11 @@ import BrandLogo from '@/components/BrandLogo.vue'
 import LanguageFlagSelect from '@/components/LanguageFlagSelect.vue'
 import MaterialIcon from '@/components/MaterialIcon.vue'
 import { loadTransactionsForUser, updateTransactionStatusInDataConnect } from '@/services/dataconnect'
+import {
+  readDashboardSnapshot,
+  saveDashboardSnapshot,
+  type DashboardSnapshot,
+} from '@/services/indexeddb'
 import { fetchPluggyItemData, isPluggySandboxEnabled, openPluggyConnect } from '@/services/pluggy'
 import { trackPageView, trackTelemetryEvent } from '@/services/telemetry'
 import type { PluggyAccount, PluggyTransaction } from '@/services/pluggy'
@@ -95,6 +100,7 @@ const isLoadingTransactions = ref(false)
 const isLoadingPluggyData = ref(false)
 const pluggyDataLoadedAt = ref('')
 const pluggyPartialErrors = ref<Array<{ accountId: string; message: string }>>([])
+const restoredFromIndexedDb = ref(false)
 const isUpdatingTransactionStatus = ref<string | null>(null)
 const transactionUpdateFeedback = ref<{ id: string; type: 'success' | 'error'; message: string } | null>(null)
 const pluggySandboxEnabled = isPluggySandboxEnabled()
@@ -263,6 +269,81 @@ function mapRemoteTransaction(transaction: { id: string; title: string; amount: 
   } satisfies Transaction
 }
 
+function currentDashboardSnapshot(): DashboardSnapshot {
+  return {
+    profileId: props.profile.id,
+    savedAt: new Date().toISOString(),
+    source: transactionsSource.value,
+    bankConnections: dashboardBankConnections.value,
+    transactions: dashboardTransactions.value,
+    connectedItemId: connectedItemId.value,
+    pluggyDataLoadedAt: pluggyDataLoadedAt.value,
+    pluggyPartialErrors: pluggyPartialErrors.value,
+  }
+}
+
+function persistDashboardSnapshot(reason: string) {
+  if (!props.profile.id || transactionsSource.value === 'mock') {
+    return
+  }
+
+  const snapshot = currentDashboardSnapshot()
+  void saveDashboardSnapshot(snapshot)
+    .then(() => {
+      trackTelemetryEvent(
+        'indexeddb.dashboard_saved',
+        {
+          reason,
+          source: snapshot.source,
+          accounts: snapshot.bankConnections.length,
+          transactions: snapshot.transactions.length,
+        },
+        { severity: 'debug' },
+      )
+    })
+    .catch((error) => {
+      trackTelemetryEvent('indexeddb.dashboard_save_error', { error }, { severity: 'warning' })
+    })
+}
+
+async function restoreDashboardSnapshot() {
+  if (!props.profile.id) {
+    return false
+  }
+
+  try {
+    const snapshot = await readDashboardSnapshot(props.profile.id)
+    if (!snapshot) {
+      restoredFromIndexedDb.value = false
+      return false
+    }
+
+    dashboardBankConnections.value = snapshot.bankConnections
+    dashboardTransactions.value = snapshot.transactions
+    transactionsSource.value = snapshot.source
+    connectedItemId.value = snapshot.connectedItemId
+    pluggyDataLoadedAt.value = snapshot.pluggyDataLoadedAt
+    pluggyPartialErrors.value = snapshot.pluggyPartialErrors
+    restoredFromIndexedDb.value = true
+
+    trackTelemetryEvent(
+      'indexeddb.dashboard_restored',
+      {
+        source: snapshot.source,
+        accounts: snapshot.bankConnections.length,
+        transactions: snapshot.transactions.length,
+        ageMinutes: Math.round((Date.now() - new Date(snapshot.savedAt).getTime()) / 60_000),
+      },
+      { severity: 'debug' },
+    )
+    return true
+  } catch (error) {
+    restoredFromIndexedDb.value = false
+    trackTelemetryEvent('indexeddb.dashboard_restore_error', { error }, { severity: 'warning' })
+    return false
+  }
+}
+
 async function refreshTransactions() {
   // Data Connect é opcional: se não houver dados remotos, mantemos o modo demonstração.
   if (!props.profile.id) {
@@ -281,6 +362,8 @@ async function refreshTransactions() {
     if (remoteTransactions.length) {
       dashboardTransactions.value = remoteTransactions.map(mapRemoteTransaction)
       transactionsSource.value = 'dataconnect'
+      restoredFromIndexedDb.value = false
+      persistDashboardSnapshot('dataconnect-refresh')
       trackTelemetryEvent('dataconnect.transactions_loaded', {
         count: remoteTransactions.length,
       })
@@ -291,6 +374,11 @@ async function refreshTransactions() {
     trackTelemetryEvent('dataconnect.transactions_error', { code: errorCode(error), error }, { severity: 'warning' })
   } finally {
     isLoadingTransactions.value = false
+  }
+
+  if (restoredFromIndexedDb.value && dashboardTransactions.value.length) {
+    trackTelemetryEvent('indexeddb.dashboard_kept_after_remote_fallback', { source: transactionsSource.value }, { severity: 'debug' })
+    return
   }
 
   dashboardTransactions.value = [...mockTransactions]
@@ -319,6 +407,7 @@ async function toggleTransactionStatus(transactionId: string, nextStatus: Transa
       message: nextStatus === 'Confirmado' ? 'Transação confirmada no Data Connect.' : 'Status atualizado para previsto.',
     }
     trackTelemetryEvent('dataconnect.transaction_status_updated', { nextStatus })
+    persistDashboardSnapshot('transaction-status')
   } catch (error) {
     target.status = previousStatus
     transactionUpdateFeedback.value = {
@@ -535,6 +624,8 @@ async function loadPluggyData(itemId: string) {
     transactionsSource.value = 'pluggy'
     pluggyDataLoadedAt.value = data.loadedAt ?? new Date().toISOString()
     pluggyPartialErrors.value = data.partialErrors ?? []
+    restoredFromIndexedDb.value = false
+    persistDashboardSnapshot('pluggy-load')
     trackTelemetryEvent(
       'pluggy.data_loaded',
       {
@@ -637,6 +728,9 @@ async function restoreDashboardData() {
   dashboardBankConnections.value = [...mockBankConnections]
   pluggyDataLoadedAt.value = ''
   pluggyPartialErrors.value = []
+  restoredFromIndexedDb.value = false
+
+  await restoreDashboardSnapshot()
 
   // If the user already has connected items from a previous session, Pluggy has
   // priority over Data Connect/mock so the dashboard does not flicker backwards.
@@ -648,7 +742,9 @@ async function restoreDashboardData() {
     return
   }
 
-  connectedItemId.value = ''
+  if (!restoredFromIndexedDb.value) {
+    connectedItemId.value = ''
+  }
   await refreshTransactions()
 }
 

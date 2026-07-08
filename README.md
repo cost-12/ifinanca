@@ -10,6 +10,7 @@ Plataforma Vue para gestao financeira pessoal com visual inspirado no Meu Pluggy
 - Pluggy: Cloudflare Pages Functions em `/api/connect-token` e `/api/pluggy-data`, mantendo credenciais server-side.
 - SPA fallback: `public/_redirects` redireciona rotas para `index.html`.
 - Telemetria: `/api/telemetry` registra eventos sanitizados para diagnosticar autenticação, Pluggy, Data Connect e desempenho.
+- IndexedDB: cache local de snapshots financeiros e fila offline de telemetria.
 
 ## Setup local
 
@@ -140,6 +141,7 @@ npm run test:e2e
 
 Veja [docs/pluggy-firebase.md](docs/pluggy-firebase.md) para o fluxo Pluggy + Cloudflare + Firebase.
 Veja [docs/telemetry-diagnostics.md](docs/telemetry-diagnostics.md) para os eventos de diagnóstico.
+Veja [docs/indexeddb-cache.md](docs/indexeddb-cache.md) para o cache local no navegador.
 
 ## Contribuicao e aprendizado
 
