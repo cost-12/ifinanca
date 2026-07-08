@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@lucide/vue": "^1.23.0",
+    "chart.js": "^4.5.1",
     "firebase": "^12.15.0",
     "pluggy-connect-sdk": "^2.13.0",
     "pluggy-js": "^0.19.3",

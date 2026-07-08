@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import {
   ArrowRight,
   Bell,
   Camera,
-  ChartNoAxesColumnIncreasing,
   CheckCheck,
   CircleDollarSign,
   CreditCard,
@@ -32,8 +31,6 @@ import {
 import {
   assets,
   bankConnections as mockBankConnections,
-  financeAccounts,
-  monthlyFlow,
   transactions as mockTransactions,
 } from '@/data/finance'
 import { formatMoney, formatSignedPercent, translate } from '@/i18n'
@@ -66,6 +63,9 @@ const emit = defineEmits<{
 
 type TabId = 'overview' | 'fluxo' | 'ativos' | 'conexoes'
 type NotificationTone = 'success' | 'warning' | 'info'
+type TransactionKind = 'income' | 'expense'
+
+const DashboardCharts = defineAsyncComponent(() => import('@/components/DashboardCharts.vue'))
 
 interface NotificationItem {
   id: string
@@ -75,6 +75,16 @@ interface NotificationItem {
   tone: NotificationTone
   actionLabel: string
   actionTab: TabId
+}
+
+interface TransactionFormState {
+  kind: TransactionKind
+  title: string
+  bank: string
+  category: string
+  amount: string
+  date: string
+  status: Transaction['status']
 }
 
 const NOTIFICATION_STORAGE_PREFIX = 'ifinanca.notifications.read'
@@ -104,6 +114,10 @@ const pluggyPartialErrors = ref<Array<{ accountId: string; message: string }>>([
 const restoredFromIndexedDb = ref(false)
 const isUpdatingTransactionStatus = ref<string | null>(null)
 const transactionUpdateFeedback = ref<{ id: string; type: 'success' | 'error'; message: string } | null>(null)
+const transactionModalOpen = ref(false)
+const transactionForm = ref<TransactionFormState>(createTransactionForm())
+const transactionFormError = ref('')
+const transactionFeedback = ref('')
 const pluggySandboxEnabled = isPluggySandboxEnabled()
 
 function tr(key: Parameters<typeof translate>[1], variables?: Parameters<typeof translate>[2]) {
@@ -127,21 +141,6 @@ const totalBalance = computed(() => dashboardBankConnections.value.reduce((total
 const incomeTotal = computed(() => dashboardTransactions.value.filter((item) => item.amount > 0).reduce((total, item) => total + item.amount, 0))
 const outcomeTotal = computed(() => Math.abs(dashboardTransactions.value.filter((item) => item.amount < 0).reduce((total, item) => total + item.amount, 0)))
 const assetTotal = computed(() => assets.reduce((total, asset) => total + asset.amount, 0))
-const overviewAccounts = computed(() => {
-  if (transactionsSource.value !== 'pluggy') {
-    return financeAccounts.map((account) => ({ ...account, variationLabel: formatSignedPercent(account.variation, props.language) }))
-  }
-
-  return dashboardBankConnections.value.map((bank) => ({
-    id: bank.id,
-    bankId: bank.id,
-    name: bank.name,
-    type: bank.mask,
-    amount: bank.balance,
-    variation: 0,
-    variationLabel: bankStatusLabel(bank.status),
-  }))
-})
 // As notificações são derivadas dos dados atuais, sem estado duplicado manual.
 const notifications = computed<NotificationItem[]>(() => {
   const bankAlerts = dashboardBankConnections.value
@@ -197,6 +196,100 @@ function displayMoney(value: number) {
 
 function balanceToggleLabel() {
   return isBalanceVisible.value ? tr('dashboard.hideBalances') : tr('dashboard.showBalances')
+}
+
+function todayInputDate() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function createTransactionForm(): TransactionFormState {
+  return {
+    kind: 'expense',
+    title: '',
+    bank: '',
+    category: '',
+    amount: '',
+    date: todayInputDate(),
+    status: 'Previsto',
+  }
+}
+
+function createLocalTransactionId() {
+  const randomPart =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+  return `manual-transaction-${randomPart}`
+}
+
+function parseTransactionAmount(value: string) {
+  const cleanValue = value.trim().replace(/[^\d,.-]/g, '')
+  const normalizedValue = cleanValue.includes(',') ? cleanValue.replace(/\./g, '').replace(',', '.') : cleanValue
+  return Number(normalizedValue)
+}
+
+function formatTransactionDate(value: string) {
+  return new Date(`${value}T12:00:00`).toLocaleDateString(props.language, {
+    day: '2-digit',
+    month: 'short',
+  })
+}
+
+function openNewTransactionModal() {
+  transactionForm.value = createTransactionForm()
+  transactionFormError.value = ''
+  transactionFeedback.value = ''
+  transactionModalOpen.value = true
+  notificationsOpen.value = false
+  profileMenuOpen.value = false
+  trackTelemetryEvent('dashboard.manual_transaction_form_opened')
+}
+
+function closeNewTransactionModal() {
+  transactionModalOpen.value = false
+  transactionFormError.value = ''
+}
+
+function saveManualTransaction() {
+  const form = transactionForm.value
+  const title = form.title.trim()
+  const category = form.category.trim()
+  const amount = parseTransactionAmount(form.amount)
+
+  if (!title || !category || !form.date || !form.amount.trim()) {
+    transactionFormError.value = tr('dashboard.transactionRequired')
+    return
+  }
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    transactionFormError.value = tr('dashboard.transactionInvalidAmount')
+    return
+  }
+
+  const transaction: Transaction = {
+    id: createLocalTransactionId(),
+    title,
+    bank: form.bank.trim() || tr('dashboard.manualBank'),
+    category,
+    amount: form.kind === 'income' ? Math.abs(amount) : -Math.abs(amount),
+    date: formatTransactionDate(form.date),
+    status: form.status,
+  }
+
+  dashboardTransactions.value = [transaction, ...dashboardTransactions.value]
+  if (transactionsSource.value === 'mock') {
+    transactionsSource.value = 'manual'
+  }
+  restoredFromIndexedDb.value = true
+  transactionFeedback.value = tr('dashboard.transactionAdded')
+  transactionModalOpen.value = false
+  persistDashboardSnapshot('manual-transaction')
+  trackTelemetryEvent('dashboard.manual_transaction_added', {
+    kind: form.kind,
+    status: form.status,
+    source: transactionsSource.value,
+  })
 }
 
 function countTransactionsByAccount(transactions: PluggyTransaction[]) {
@@ -805,6 +898,18 @@ watch(activeTab, (nextTab) => {
           />
 
           <button
+            class="tooltip tooltip-bottom btn btn-ghost btn-square btn-sm hidden text-zinc-400 hover:text-white sm:inline-flex"
+            :aria-label="balanceToggleLabel()"
+            :aria-pressed="!isBalanceVisible"
+            :data-tip="balanceToggleLabel()"
+            type="button"
+            @click="toggleBalanceVisibility"
+          >
+            <EyeOff v-if="isBalanceVisible" :size="18" />
+            <Eye v-else :size="18" />
+          </button>
+
+          <button
             :class="['tooltip tooltip-bottom btn btn-ghost btn-square btn-sm hidden sm:inline-flex', theme === 'light' ? 'text-[#17c964]' : 'text-zinc-400']"
             :data-tip="tr('common.themeLight')"
             type="button"
@@ -944,6 +1049,15 @@ watch(activeTab, (nextTab) => {
       </div>
 
       <nav v-if="menuOpen" class="grid gap-2 border-t border-white/10 px-4 py-3 md:hidden">
+        <button
+          class="btn btn-sm justify-start border-white/10 bg-transparent text-zinc-300 hover:bg-white/10"
+          type="button"
+          @click="toggleBalanceVisibility"
+        >
+          <EyeOff v-if="isBalanceVisible" :size="16" />
+          <Eye v-else :size="16" />
+          {{ balanceToggleLabel() }}
+        </button>
         <div class="grid grid-cols-2 gap-2 sm:hidden">
           <button class="btn btn-sm border-white/10 bg-transparent text-zinc-300" type="button" @click="setTheme('light')">
             <Sun :size="16" />
@@ -1072,56 +1186,17 @@ watch(activeTab, (nextTab) => {
               </div>
             </section>
 
-            <section class="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-              <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
-                <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.monthlyFlow') }}</p>
-                    <h2 class="mt-1 text-2xl font-black">{{ tr('dashboard.incomeOutcome') }}</h2>
-                  </div>
-                  <ChartNoAxesColumnIncreasing class="text-[#f52a55]" :size="24" />
-                </div>
-
-                <div class="grid h-64 grid-cols-6 items-end gap-4">
-                  <div v-for="month in monthlyFlow" :key="month.label" class="flex h-full flex-col justify-end gap-2">
-                    <div class="flex flex-1 items-end gap-1">
-                      <span class="block w-full rounded-t bg-[#17c964]" :style="{ height: `${month.income * 5}%` }"></span>
-                      <span class="block w-full rounded-t bg-[#f52a55]" :style="{ height: `${month.outcome * 5}%` }"></span>
-                    </div>
-                    <span class="text-center text-xs font-bold text-zinc-500">{{ month.label }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
-                <div class="mb-5 flex items-center justify-between">
-                  <div>
-                    <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.myAccounts') }}</p>
-                    <h2 class="mt-1 text-2xl font-black">{{ tr('dashboard.connected') }}</h2>
-                  </div>
-                  <button class="btn btn-square btn-sm border-0 bg-white/10 text-white hover:bg-white/20" type="button" @click="activeTab = 'conexoes'">
-                    <ArrowRight :size="17" />
-                  </button>
-                </div>
-
-                <div class="space-y-3">
-                  <div v-for="account in overviewAccounts" :key="account.id" class="flex items-center justify-between rounded-lg bg-[#0b0d12] p-4">
-                    <div class="min-w-0">
-                      <p class="truncate font-black">{{ account.name }}</p>
-                      <p class="text-sm text-zinc-500">{{ account.type }}</p>
-                    </div>
-                    <div class="text-right">
-                      <p :class="account.amount >= 0 ? 'text-[#7db4ff]' : 'text-[#ff6b7f]'" class="font-black">
-                        {{ displayMoney(account.amount) }}
-                      </p>
-                      <p :class="account.variation >= 0 ? 'text-[#76eaa2]' : 'text-[#ff6b7f]'" class="text-xs font-bold">
-                        {{ account.variationLabel }}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
+            <DashboardCharts
+              :bank-connections="dashboardBankConnections"
+              :income-total="incomeTotal"
+              :is-balance-visible="isBalanceVisible"
+              :language="language"
+              :outcome-total="outcomeTotal"
+              :theme="theme"
+              :total-balance="totalBalance"
+              :transactions="dashboardTransactions"
+              @open-connections="activeTab = 'conexoes'"
+            />
 
             <section class="grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
               <div class="rounded-lg border border-white/10 bg-[#101318] p-5">
@@ -1151,6 +1226,9 @@ watch(activeTab, (nextTab) => {
                     </span>
                     <span v-else-if="transactionsSource === 'pluggy'" class="badge border-[#173423] bg-[#102217] text-[#76eaa2]">
                       Dados reais · Pluggy
+                    </span>
+                    <span v-else-if="transactionsSource === 'manual'" class="badge border-[#173423] bg-[#102217] text-[#76eaa2]">
+                      {{ tr('dashboard.manualData') }}
                     </span>
                     <span v-else class="badge border-white/10 bg-white/5 text-zinc-500">
                       Demonstração
@@ -1320,7 +1398,19 @@ watch(activeTab, (nextTab) => {
                 <p class="text-sm font-bold text-zinc-400">{{ tr('dashboard.plannedFlow') }}</p>
                 <h2 class="mt-1 text-2xl font-black">{{ tr('dashboard.nextTransactions') }}</h2>
               </div>
-              <Plus class="text-[#17c964]" :size="24" />
+              <button
+                class="tooltip tooltip-left btn btn-ghost btn-square text-[#17c964] hover:bg-white/10"
+                :aria-label="tr('dashboard.addTransaction')"
+                :data-tip="tr('dashboard.addTransaction')"
+                type="button"
+                @click="openNewTransactionModal"
+              >
+                <Plus :size="24" />
+              </button>
+            </div>
+
+            <div v-if="transactionFeedback" class="mb-4 rounded-lg border border-[#173423] bg-[#102217] px-4 py-3 text-sm font-semibold text-[#76eaa2]">
+              {{ transactionFeedback }}
             </div>
 
             <div class="grid gap-3">
@@ -1337,6 +1427,132 @@ watch(activeTab, (nextTab) => {
           </div>
         </div>
       </div>
+    </div>
+
+    <div
+      v-if="transactionModalOpen"
+      class="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 py-6"
+      role="presentation"
+      @click.self="closeNewTransactionModal"
+    >
+      <form
+        class="w-full max-w-2xl rounded-lg border border-white/10 bg-[#101318] p-5 shadow-2xl sm:p-6"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="tr('dashboard.newTransaction')"
+        @submit.prevent="saveManualTransaction"
+      >
+        <div class="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm font-bold uppercase text-[#17c964]">{{ tr('dashboard.plannedFlow') }}</p>
+            <h2 class="mt-1 text-2xl font-black">{{ tr('dashboard.newTransaction') }}</h2>
+          </div>
+          <button class="btn btn-ghost btn-square btn-sm text-zinc-400" :aria-label="tr('common.close')" type="button" @click="closeNewTransactionModal">
+            <X :size="18" />
+          </button>
+        </div>
+
+        <div class="mb-4">
+          <p class="mb-2 text-sm font-bold text-zinc-400">{{ tr('dashboard.transactionType') }}</p>
+          <div class="grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-[#0b0d12] p-1">
+            <button
+              :class="transactionForm.kind === 'income' ? 'bg-[#17c964] text-[#06130a]' : 'bg-transparent text-zinc-300 hover:bg-white/10'"
+              class="btn btn-sm border-0 font-bold"
+              type="button"
+              @click="transactionForm.kind = 'income'"
+            >
+              {{ tr('dashboard.transactionIncome') }}
+            </button>
+            <button
+              :class="transactionForm.kind === 'expense' ? 'bg-[#f52a55] text-white' : 'bg-transparent text-zinc-300 hover:bg-white/10'"
+              class="btn btn-sm border-0 font-bold"
+              type="button"
+              @click="transactionForm.kind = 'expense'"
+            >
+              {{ tr('dashboard.transactionExpense') }}
+            </button>
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="grid gap-2 sm:col-span-2">
+            <span class="text-sm font-bold text-zinc-400">{{ tr('dashboard.transactionTitle') }}</span>
+            <input
+              v-model="transactionForm.title"
+              class="input w-full border-white/10 bg-[#0b0d12] text-white placeholder:text-zinc-600 focus:border-[#17c964]"
+              :placeholder="tr('dashboard.transactionTitlePlaceholder')"
+              type="text"
+            />
+          </label>
+
+          <label class="grid gap-2">
+            <span class="text-sm font-bold text-zinc-400">{{ tr('dashboard.transactionCategory') }}</span>
+            <input
+              v-model="transactionForm.category"
+              class="input w-full border-white/10 bg-[#0b0d12] text-white placeholder:text-zinc-600 focus:border-[#17c964]"
+              :placeholder="tr('dashboard.transactionCategoryPlaceholder')"
+              type="text"
+            />
+          </label>
+
+          <label class="grid gap-2">
+            <span class="text-sm font-bold text-zinc-400">{{ tr('dashboard.transactionBank') }}</span>
+            <input
+              v-model="transactionForm.bank"
+              class="input w-full border-white/10 bg-[#0b0d12] text-white placeholder:text-zinc-600 focus:border-[#17c964]"
+              :placeholder="tr('dashboard.transactionBankPlaceholder')"
+              type="text"
+            />
+          </label>
+
+          <label class="grid gap-2">
+            <span class="text-sm font-bold text-zinc-400">{{ tr('dashboard.transactionAmount') }}</span>
+            <input
+              v-model="transactionForm.amount"
+              class="input w-full border-white/10 bg-[#0b0d12] text-white placeholder:text-zinc-600 focus:border-[#17c964]"
+              inputmode="decimal"
+              min="0"
+              placeholder="0,00"
+              step="0.01"
+              type="text"
+            />
+          </label>
+
+          <label class="grid gap-2">
+            <span class="text-sm font-bold text-zinc-400">{{ tr('dashboard.transactionDate') }}</span>
+            <input
+              v-model="transactionForm.date"
+              class="input w-full border-white/10 bg-[#0b0d12] text-white focus:border-[#17c964]"
+              type="date"
+            />
+          </label>
+
+          <label class="grid gap-2 sm:col-span-2">
+            <span class="text-sm font-bold text-zinc-400">{{ tr('dashboard.transactionStatus') }}</span>
+            <select
+              v-model="transactionForm.status"
+              class="select w-full border-white/10 bg-[#0b0d12] text-white focus:border-[#17c964]"
+            >
+              <option value="Previsto">{{ transactionStatusLabel('Previsto') }}</option>
+              <option value="Confirmado">{{ transactionStatusLabel('Confirmado') }}</option>
+            </select>
+          </label>
+        </div>
+
+        <p v-if="transactionFormError" class="mt-4 rounded-lg border border-[#3a1f26] bg-[#22141a] px-4 py-3 text-sm font-semibold text-[#ff8a9b]">
+          {{ transactionFormError }}
+        </p>
+
+        <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button class="btn border-white/10 bg-transparent text-zinc-300 hover:bg-white/10" type="button" @click="closeNewTransactionModal">
+            {{ tr('dashboard.cancel') }}
+          </button>
+          <button class="keep-white btn border-0 bg-[#f52a55] text-white hover:bg-[#e1264f]" type="submit">
+            <Plus :size="18" />
+            {{ tr('dashboard.saveTransaction') }}
+          </button>
+        </div>
+      </form>
     </div>
 
     <div class="dock border-t border-white/10 bg-[#07080d] text-zinc-400 md:hidden">

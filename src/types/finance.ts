@@ -17,7 +17,7 @@ export interface UserProfile {
 }
 
 /** Indicates where dashboard data is coming from. */
-export type DataSource = 'mock' | 'pluggy' | 'dataconnect'
+export type DataSource = 'mock' | 'manual' | 'pluggy' | 'dataconnect'
 
 export type AppTheme = 'dark' | 'light'
 export type AppLanguage = 'pt-BR' | 'en-US' | 'es-ES'
