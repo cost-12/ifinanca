@@ -16,6 +16,7 @@ import {
   signInWithPopup,
   signOut,
   updateProfile,
+  type ActionCodeSettings,
   type Auth,
   type Unsubscribe,
   type User,
@@ -344,6 +345,29 @@ function createAuthFlowError(code: string, message: string) {
   return Object.assign(new Error(message), { code })
 }
 
+function getActionCodeSettings(): ActionCodeSettings | undefined {
+  if (typeof window === 'undefined') {
+    return undefined
+  }
+
+  return {
+    url: new URL('/login', window.location.origin).toString(),
+    handleCodeInApp: false,
+  }
+}
+
+async function sendVerificationEmail(user: User) {
+  await sendEmailVerification(user, getActionCodeSettings())
+}
+
+async function signOutQuietly(authInstance: Auth) {
+  try {
+    await signOut(authInstance)
+  } catch {
+    // A falha ao encerrar sessão não deve esconder a mensagem principal do fluxo.
+  }
+}
+
 function profileFromUser(user: User, data: FirestoreProfileData = {}): UserProfile {
   const profile: UserProfile = {
     id: user.uid,
@@ -363,16 +387,7 @@ function profileFromUser(user: User, data: FirestoreProfileData = {}): UserProfi
 
 async function writeInitialProfile(user: User, input?: Partial<RegisterProfileInput>) {
   const { db } = getFirebaseServices()
-  const googlePhotoUrl = resolveGooglePhotoUrl(user)
-  const profile: UserProfile = {
-    id: user.uid,
-    name: normalizeName(input?.name || user.displayName || 'Usuario iFinanca'),
-    email: normalizeEmail(input?.email || user.email || ''),
-    goal: input?.goal || defaultGoal,
-    monthlyIncome: Number(input?.monthlyIncome || 0),
-    createdAt: new Date().toISOString(),
-    ...(googlePhotoUrl ? { avatarUrl: googlePhotoUrl } : {}),
-  }
+  const profile = fallbackInitialProfile(user, input)
 
   await setDoc(doc(db, 'users', user.uid), {
     ...profile,
@@ -382,6 +397,20 @@ async function writeInitialProfile(user: User, input?: Partial<RegisterProfileIn
   })
 
   return profile
+}
+
+function fallbackInitialProfile(user: User, input?: Partial<RegisterProfileInput>) {
+  const googlePhotoUrl = resolveGooglePhotoUrl(user)
+
+  return {
+    id: user.uid,
+    name: normalizeName(input?.name || user.displayName || 'Usuario iFinanca'),
+    email: normalizeEmail(input?.email || user.email || ''),
+    goal: input?.goal || defaultGoal,
+    monthlyIncome: Number(input?.monthlyIncome || 0),
+    createdAt: new Date().toISOString(),
+    ...(googlePhotoUrl ? { avatarUrl: googlePhotoUrl } : {}),
+  } satisfies UserProfile
 }
 
 async function syncGoogleProfileData(user: User, data: FirestoreProfileData) {
@@ -452,16 +481,33 @@ export async function registerWithEmailProfile(input: RegisterProfileInput) {
   const name = normalizeName(input.name)
   const credential = await createUserWithEmailAndPassword(auth, email, input.password)
 
-  await updateProfile(credential.user, { displayName: name })
+  try {
+    await updateProfile(credential.user, { displayName: name })
+  } catch {
+    // O Firestore tambem guarda o nome; nao bloqueamos o envio do e-mail por isso.
+  }
 
-  const profile = await writeInitialProfile(credential.user, {
+  const profileInput = {
     ...input,
     name,
     email,
-  })
+  }
 
-  await sendEmailVerification(credential.user)
-  await signOut(auth)
+  try {
+    await sendVerificationEmail(credential.user)
+  } catch (error) {
+    await signOutQuietly(auth)
+    throw error
+  }
+
+  let profile = fallbackInitialProfile(credential.user, profileInput)
+  try {
+    profile = await writeInitialProfile(credential.user, profileInput)
+  } catch {
+    // Se o perfil falhar agora, ele sera recriado no primeiro login verificado.
+  }
+
+  await signOutQuietly(auth)
 
   return {
     profile,
@@ -476,8 +522,12 @@ export async function loginWithEmailProfile(input: LoginInput) {
   await credential.user.reload()
 
   if (!credential.user.emailVerified) {
-    await sendEmailVerification(credential.user)
-    await signOut(auth)
+    try {
+      await sendVerificationEmail(credential.user)
+    } catch {
+      // Mesmo que o reenvio falhe, a causa de bloqueio continua sendo e-mail nao verificado.
+    }
+    await signOutQuietly(auth)
     throw createAuthFlowError('auth/email-not-verified', 'E-mail ainda não verificado.')
   }
 
@@ -522,7 +572,7 @@ export async function logoutUser() {
 
 export async function sendLoginPasswordReset(email: string) {
   const { auth } = getFirebaseServices()
-  await sendPasswordResetEmail(auth, normalizeEmail(email))
+  await sendPasswordResetEmail(auth, normalizeEmail(email), getActionCodeSettings())
 }
 
 export async function updateUserProfileDocument(profile: UserProfile) {
@@ -560,9 +610,11 @@ export function getFirebaseAuthErrorMessage(error: unknown, language: AppLanguag
       'auth/email-not-verified': 'Confirme seu e-mail antes de entrar. Enviamos um novo link de verificação.',
       'auth/invalid-credential': 'E-mail ou senha inválidos.',
       'auth/invalid-email': 'Informe um e-mail válido.',
+      'auth/invalid-continue-uri': 'A URL de retorno do e-mail de segurança é inválida.',
       'auth/missing-password': 'Informe sua senha.',
       'auth/network-request-failed': 'Falha de rede. Verifique sua conexão.',
       'auth/operation-not-allowed': 'Habilite o provedor Email/Senha ou Google no Firebase Authentication.',
+      'auth/unauthorized-continue-uri': 'Autorize o domínio deste site no Firebase Authentication para enviar e-mails de segurança.',
       'auth/account-exists-with-different-credential': 'Este e-mail já está cadastrado com outro método de acesso.',
       'auth/cancelled-popup-request': 'A janela do Google foi cancelada.',
       'auth/popup-blocked': 'O navegador bloqueou a janela do Google. Permita pop-ups para continuar.',
@@ -578,9 +630,11 @@ export function getFirebaseAuthErrorMessage(error: unknown, language: AppLanguag
       'auth/email-not-verified': 'Confirm your email before signing in. We sent a new verification link.',
       'auth/invalid-credential': 'Invalid email or password.',
       'auth/invalid-email': 'Enter a valid email.',
+      'auth/invalid-continue-uri': 'The security email return URL is invalid.',
       'auth/missing-password': 'Enter your password.',
       'auth/network-request-failed': 'Network error. Check your connection.',
       'auth/operation-not-allowed': 'Enable Email/Password or Google in Firebase Authentication.',
+      'auth/unauthorized-continue-uri': 'Authorize this site domain in Firebase Authentication to send security emails.',
       'auth/account-exists-with-different-credential': 'This email is already registered with another access method.',
       'auth/cancelled-popup-request': 'The Google window was cancelled.',
       'auth/popup-blocked': 'The browser blocked the Google window. Allow pop-ups to continue.',
@@ -596,9 +650,11 @@ export function getFirebaseAuthErrorMessage(error: unknown, language: AppLanguag
       'auth/email-not-verified': 'Confirma tu correo electrónico antes de entrar. Enviamos un nuevo enlace de verificación.',
       'auth/invalid-credential': 'Correo electrónico o contraseña inválidos.',
       'auth/invalid-email': 'Ingresa un correo electrónico válido.',
+      'auth/invalid-continue-uri': 'La URL de retorno del correo de seguridad no es válida.',
       'auth/missing-password': 'Ingresa tu contraseña.',
       'auth/network-request-failed': 'Error de red. Verifica tu conexión.',
       'auth/operation-not-allowed': 'Habilita Correo electrónico/Contraseña o Google en Firebase Authentication.',
+      'auth/unauthorized-continue-uri': 'Autoriza el dominio de este sitio en Firebase Authentication para enviar correos de seguridad.',
       'auth/account-exists-with-different-credential': 'Este correo electrónico ya está registrado con otro método de acceso.',
       'auth/cancelled-popup-request': 'La ventana de Google fue cancelada.',
       'auth/popup-blocked': 'El navegador bloqueó la ventana de Google. Permite pop-ups para continuar.',

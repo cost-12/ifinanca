@@ -138,6 +138,28 @@ async function retrySecurityCheck() {
   trackTelemetryEvent('app_check.retry_result', { status }, { severity: status === 'ready' ? 'info' : 'warning' })
 }
 
+async function ensureSecurityCheckForEmailFlow(flow: 'password' | 'reset') {
+  if (!appCheckSiteKey) {
+    return true
+  }
+
+  try {
+    await ensureAppCheckReady()
+    appCheckStatus.value = 'ready'
+    return true
+  } catch (error) {
+    const code = errorCode(error)
+    if (isAppCheckErrorCode(code)) {
+      appCheckStatus.value = 'error'
+      errorMessage.value = ''
+    } else {
+      errorMessage.value = getFirebaseAuthErrorMessage(error, props.language)
+    }
+    trackTelemetryEvent('auth.security_check_error', { flow, code, error }, { severity: 'error' })
+    return false
+  }
+}
+
 async function submitAccess() {
   if (!canSubmit.value || isSubmitting.value) {
     return
@@ -150,6 +172,10 @@ async function submitAccess() {
   trackTelemetryEvent('auth.submit', { mode, provider: 'password' })
 
   try {
+    if (!(await ensureSecurityCheckForEmailFlow('password'))) {
+      return
+    }
+
     // Cadastro cria perfil e volta para login; login emite o perfil autenticado.
     if (isRegisterMode.value) {
       await registerWithEmailProfile({
@@ -195,6 +221,10 @@ async function resetPassword() {
   trackTelemetryEvent('auth.password_reset_requested')
 
   try {
+    if (!(await ensureSecurityCheckForEmailFlow('reset'))) {
+      return
+    }
+
     await sendLoginPasswordReset(form.email)
     successMessage.value = tr('auth.resetSent')
     trackTelemetryEvent('auth.password_reset_sent')

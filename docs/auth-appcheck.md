@@ -61,6 +61,10 @@ Nunca coloque essas chaves em variaveis `VITE_*`.
    - `localhost`
    - qualquer dominio customizado de producao
 
+3. Os e-mails de verificacao e redefinicao de senha usam URL de retorno para `/login`
+   no dominio atual da aplicacao. Se o dominio nao estiver autorizado, o Firebase
+   pode recusar o envio com `auth/unauthorized-continue-uri`.
+
 ### App Check
 
 1. Registre o app Web no App Check.
@@ -101,7 +105,15 @@ cp .dev.vars.example .dev.vars
 2. Enquanto o token nao chega, mostra "Carregando verificacao de seguranca...".
 3. Se falhar apos timeout/retry, mostra erro claro e botao **Tentar novamente**.
 4. "Continuar com Google" chama `ensureAppCheckReady()` e depois `signInWithPopup`.
-5. Erros do Google (`popup-blocked`, `unauthorized-domain`, etc.) continuam visiveis via `getFirebaseAuthErrorMessage`.
+5. Login/cadastro por e-mail e redefinicao de senha tambem conferem App Check
+   quando a site key estiver configurada.
+6. Cadastro por e-mail envia verificacao, encerra a sessao e mostra a tela de
+   login. Se o perfil no Firestore falhar nesse momento, ele sera recriado no
+   primeiro login com e-mail ja verificado.
+7. Ao tentar entrar com e-mail ainda nao verificado, o app tenta reenviar a
+   verificacao; se esse reenvio falhar, a mensagem principal continua sendo
+   "Confirme seu e-mail" em vez de aparecer como falha de rede.
+8. Erros do Google (`popup-blocked`, `unauthorized-domain`, etc.) continuam visiveis via `getFirebaseAuthErrorMessage`.
 
 ## Endpoint legado `/api/verify-recaptcha`
 

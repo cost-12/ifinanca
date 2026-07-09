@@ -7,6 +7,7 @@ import {
   getAppCheckSiteKey,
   loginWithEmailProfile,
   retryAppCheckWarmUp,
+  sendLoginPasswordReset,
   signInWithGoogleProfile,
   warmUpAppCheck,
 } from '@/services/firebase'
@@ -110,6 +111,18 @@ describe('AccessGate', () => {
       email: 'thiago@example.com',
       goal: 'Unificar bancos',
     })
+  })
+
+  it('requests a password reset with the login email', async () => {
+    vi.mocked(sendLoginPasswordReset).mockResolvedValue(undefined)
+    const wrapper = mount(AccessGate, { props: { language: 'pt-BR', initialMode: 'login' } })
+
+    await wrapper.get('input[type="email"]').setValue('thiago@example.com')
+    await wrapper.findAll('button').find((button) => button.text().includes('Esqueci minha senha'))!.trigger('click')
+    await flushPromises()
+
+    expect(sendLoginPasswordReset).toHaveBeenCalledWith('thiago@example.com')
+    expect(wrapper.text()).toContain('Se houver uma conta')
   })
 
   it('warms up App Check on mount when configured', async () => {
